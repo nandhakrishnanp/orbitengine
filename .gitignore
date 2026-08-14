@@ -1,0 +1,20 @@
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+
+# Node (if chosen later)
+node_modules/
+dist/
+*.log
+
+# Python (if chosen later)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
