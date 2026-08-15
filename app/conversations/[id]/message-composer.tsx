@@ -15,9 +15,10 @@ export default function MessageComposer({
       onSubmit={async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
-        const content = new FormData(form).get("content");
+        const formData = new FormData(form);
+        const content = formData.get("content");
         if (typeof content !== "string" || !content.trim()) return;
-        await addMessage(conversationId, form);
+        await addMessage(conversationId, formData);
         form.reset();
         router.refresh();
       }}
