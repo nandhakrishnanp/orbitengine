@@ -1,37 +1,28 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { pool } from "@/lib/db";
-import { createConversation } from "./actions";
+import { apiFetch } from "@/lib/api";
+import NewConversationButton from "./new-conversation-button";
 
 export const metadata = { title: "Conversations · OrbitEngine" };
 
-export default async function ConversationsPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/");
+type Conversation = {
+  id: string;
+  status: string;
+  createdAt: string;
+};
 
-  const { rows: conversations } = await pool.query(
-    `SELECT id, status, "createdAt"
-     FROM conversations
-     WHERE "userId" = $1
-     ORDER BY "updatedAt" DESC`,
-    [session.user.id]
-  );
+export default async function ConversationsPage() {
+  const res = await apiFetch("/api/conversations");
+  if (res.status === 401) redirect("/");
+  const { conversations } = (await res.json()) as {
+    conversations: Conversation[];
+  };
 
   return (
     <main className="flex flex-1 flex-col items-center gap-6 p-16">
       <div className="flex w-full max-w-xl items-center justify-between">
         <h1 className="text-2xl font-semibold">Conversations</h1>
-        <form
-          action={async () => {
-            "use server";
-            await createConversation();
-          }}
-        >
-          <button className="rounded-full bg-zinc-900 px-4 py-2 font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-black dark:hover:bg-zinc-300">
-            New conversation
-          </button>
-        </form>
+        <NewConversationButton />
       </div>
 
       {conversations.length === 0 ? (

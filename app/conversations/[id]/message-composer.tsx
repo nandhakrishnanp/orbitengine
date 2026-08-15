@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { addMessage } from "../actions";
 
 export default function MessageComposer({
   conversationId,
@@ -18,9 +17,19 @@ export default function MessageComposer({
         const formData = new FormData(form);
         const content = formData.get("content");
         if (typeof content !== "string" || !content.trim()) return;
-        await addMessage(conversationId, formData);
-        form.reset();
-        router.refresh();
+
+        const res = await fetch(
+          `/api/conversations/${conversationId}/messages`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+          }
+        );
+        if (res.ok) {
+          form.reset();
+          router.refresh();
+        }
       }}
       className="flex gap-2"
     >

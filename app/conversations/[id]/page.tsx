@@ -1,33 +1,29 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { auth } from "@/auth";
-import { pool } from "@/lib/db";
+import { apiFetch } from "@/lib/api";
 import MessageComposer from "./message-composer";
+
+type Message = {
+  role: string;
+  content: string;
+  phase: string | null;
+  createdAt: string;
+};
 
 export default async function ConversationPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/");
-
   const { id } = await params;
 
-  const conversationResult = await pool.query(
-    `SELECT id, status FROM conversations WHERE id = $1 AND "userId" = $2`,
-    [id, session.user.id]
-  );
-  if (conversationResult.rowCount === 0) notFound();
-  const conversation = conversationResult.rows[0];
-
-  const { rows: messages } = await pool.query(
-    `SELECT role, content, phase, "createdAt"
-     FROM messages
-     WHERE "conversationId" = $1
-     ORDER BY "createdAt"`,
-    [id]
-  );
+  const res = await apiFetch(`/api/conversations/${id}`);
+  if (res.status === 401) redirect("/");
+  if (res.status === 404) notFound();
+  const { conversation, messages } = (await res.json()) as {
+    conversation: { id: string; status: string };
+    messages: Message[];
+  };
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-16">
@@ -64,7 +60,7 @@ export default async function ConversationPage({
         )}
       </div>
 
-      <MessageComposer conversationId={id} />
+      <MessageComposer conversationId={conversation.id} />
     </main>
   );
 }
