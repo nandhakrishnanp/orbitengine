@@ -17,9 +17,8 @@ Early MVP. Live today:
 - Conversations you can start, list, reopen, and send messages into; everything
   persists and survives reloads
 
-On the way (tracker in [docs/adr](./docs/adr)): attach a repository, the
-sandboxed engine loop (read / edit / test / push), open PRs, create issues, and
-bootstrap brand-new projects.
+On the way: attach a repository, the sandboxed engine loop (read / edit / test
+/ push), open PRs, create issues, and bootstrap brand-new projects.
 
 ## Tech stack
 
@@ -89,16 +88,6 @@ lib/                    db pool, API fetch helpers
 docs/adr/               Architecture Decision Records (0001–0016)
 CONTEXT.md              Domain glossary
 ```
-
-## Roadmap
-
-The MVP slices are tracked as GitHub issues (labels: `ready-for-agent`):
-
-- [x] Ticket 1 — Scaffold app + GitHub sign-in
-- [x] Ticket 2 — Conversation create/list/persist
-- [ ] Ticket 3 — Attach one repository
-- [ ] Ticket 4 — Sandbox lifecycle per conversation
-- [ ] Tickets 5–10 — Engine loop, repo read/edit, PRs, issues, bootstrap
 
 ## License
 
