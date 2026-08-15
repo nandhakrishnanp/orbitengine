@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth, signIn, signOut } from "@/auth";
 
 export default async function Home() {
@@ -33,6 +34,12 @@ export default async function Home() {
               Sign out
             </button>
           </form>
+          <Link
+            href="/conversations"
+            className="rounded-full border border-zinc-200 px-5 py-2 font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+          >
+            Conversations
+          </Link>
         </>
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
