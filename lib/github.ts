@@ -106,9 +106,15 @@ async function getInstallationToken(installationId: number): Promise<string> {
   return token;
 }
 
-export async function listAccessibleRepos(userId: string): Promise<GitHubRepo[]> {
+export async function getInstallationTokenForUser(
+  userId: string
+): Promise<string> {
   const installationId = await getInstallationIdForUser(userId);
-  const token = await getInstallationToken(installationId);
+  return getInstallationToken(installationId);
+}
+
+export async function listAccessibleRepos(userId: string): Promise<GitHubRepo[]> {
+  const token = await getInstallationTokenForUser(userId);
 
   const { repositories } = await githubRequest<{
     repositories: Array<{
