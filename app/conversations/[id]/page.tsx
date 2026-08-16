@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import MessageComposer from "./message-composer";
+import SandboxStatus from "./sandbox-status";
 
 type Message = {
   role: string;
@@ -24,20 +25,23 @@ export default async function ConversationPage({
       id: string;
       status: string;
       attachedRepository: string | null;
+      sandboxId: string | null;
     };
     messages: Message[];
   };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
+      <header className="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">
             {conversation.id.slice(0, 8)}
           </span>
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-            {conversation.status}
-          </span>
+          <SandboxStatus
+            conversationId={conversation.id}
+            status={conversation.status}
+            sandboxId={conversation.sandboxId}
+          />
         </div>
         {conversation.attachedRepository && (
           <a
