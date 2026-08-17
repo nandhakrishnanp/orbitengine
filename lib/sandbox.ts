@@ -10,11 +10,9 @@ export function sandboxName(conversationId: string): string {
 export async function provisionSandbox({
   conversationId,
   userId,
-  attachedRepository,
 }: {
   conversationId: string;
   userId: string;
-  attachedRepository: string | null;
 }): Promise<string> {
   const token = await getInstallationTokenForUser(userId);
   const name = sandboxName(conversationId);
@@ -24,23 +22,7 @@ export async function provisionSandbox({
     persistent: true,
     env: {
       GITHUB_TOKEN: token,
-      ...(attachedRepository
-        ? {
-            ATTACHED_REPOSITORY: attachedRepository,
-            GITHUB_REPOSITORY_URL: `https://github.com/${attachedRepository}.git`,
-          }
-        : {}),
     },
-    ...(attachedRepository
-      ? {
-          source: {
-            type: "git" as const,
-            url: `https://github.com/${attachedRepository}.git`,
-            username: "x-access-token",
-            password: token,
-          },
-        }
-      : {}),
   });
 
   return sandbox.name;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type ToolUIPart } from "ai";
 import {
@@ -26,6 +26,13 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import { Terminal } from "@/components/ai-elements/terminal";
+
+type Repo = {
+  fullName: string;
+  name: string;
+  owner: string;
+  private: boolean;
+};
 
 type EngineTools = {
   run_command: { input: { command: string }; output: { exitCode: number; stdout: string; stderr: string } };
@@ -93,7 +100,53 @@ export default function StreamingChat({
   });
 
   const [input, setInput] = useState("");
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [highlighted, setHighlighted] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isStreaming = status === "streaming" || status === "submitted";
+
+  useEffect(() => {
+    fetch("/api/repos")
+      .then((res) => (res.ok ? res.json() : { repos: [] }))
+      .then((data) => setRepos(data.repos ?? []))
+      .catch(() => setRepos([]));
+  }, []);
+
+  const filteredRepos = useMemo(() => {
+    if (!mentionQuery) return repos;
+    const q = mentionQuery.toLowerCase();
+    return repos.filter(
+      (repo) =>
+        repo.fullName.toLowerCase().includes(q) ||
+        repo.name.toLowerCase().includes(q)
+    );
+  }, [repos, mentionQuery]);
+
+  function parseMention(next: string) {
+    const tokens = next.split(" ");
+    const last = tokens[tokens.length - 1];
+    if (last.startsWith("@") && last.length > 1) {
+      setMentionQuery(last.slice(1));
+      setMentionOpen(true);
+      setHighlighted(0);
+    } else if (last === "@") {
+      setMentionQuery("");
+      setMentionOpen(true);
+      setHighlighted(0);
+    } else {
+      setMentionOpen(false);
+    }
+  }
+
+  function selectRepo(repo: Repo) {
+    const tokens = input.split(" ");
+    tokens[tokens.length - 1] = `@${repo.fullName} `;
+    setInput(tokens.join(" "));
+    setMentionOpen(false);
+    inputRef.current?.focus();
+  }
 
   useEffect(() => {
     if (initialMessages.length > 0 && messages.length === 0) {
@@ -112,6 +165,25 @@ export default function StreamingChat({
     if (!input.trim() || isStreaming) return;
     sendMessage({ text: input.trim() });
     setInput("");
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!mentionOpen || filteredRepos.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlighted((h) => (h + 1) % filteredRepos.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlighted(
+        (h) => (h - 1 + filteredRepos.length) % filteredRepos.length
+      );
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      selectRepo(filteredRepos[highlighted]);
+    } else if (e.key === "Escape") {
+      setMentionOpen(false);
+    }
   }
 
   return (
@@ -161,15 +233,52 @@ export default function StreamingChat({
       <div className="border-t border-border px-6 py-4">
         <div className="mx-auto max-w-3xl">
           <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              name="content"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={isStreaming ? "Engine is working…" : "Describe the change to make…"}
-              disabled={isStreaming}
-              className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-              autoComplete="off"
-            />
+            <div className="relative flex-1">
+              {mentionOpen && filteredRepos.length > 0 && (
+                <div className="absolute bottom-full left-0 z-10 mb-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                  {filteredRepos.slice(0, 8).map((repo, index) => (
+                    <button
+                      key={repo.fullName}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectRepo(repo);
+                      }}
+                      onMouseEnter={() => setHighlighted(index)}
+                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm transition-colors ${
+                        index === highlighted
+                          ? "bg-zinc-100 dark:bg-zinc-800"
+                          : ""
+                      }`}
+                    >
+                      <span className="truncate font-medium">
+                        {repo.fullName}
+                      </span>
+                      {repo.private && (
+                        <span className="ml-2 shrink-0 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                          private
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <input
+                ref={inputRef}
+                name="content"
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  parseMention(e.target.value);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={isStreaming ? "Engine is working…" : "Type @ to pick a repo, then describe the change…"}
+                disabled={isStreaming}
+                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                autoComplete="off"
+              />
+            </div>
             {isStreaming ? (
               <button
                 type="button"

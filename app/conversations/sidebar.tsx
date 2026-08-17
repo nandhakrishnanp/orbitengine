@@ -13,7 +13,6 @@ type User = {
 type Conversation = {
   id: string;
   status: string;
-  attachedRepository: string | null;
   createdAt: string;
   updatedAt: string;
   title: string | null;
@@ -87,13 +86,8 @@ export default function Sidebar({
                         ? conversation.title
                         : "New conversation"}
                     </span>
-                    <span className="flex items-center gap-2 text-xs text-zinc-500">
-                      <span>{formatTime(conversation.updatedAt)}</span>
-                      {conversation.attachedRepository && (
-                        <span className="truncate">
-                          {conversation.attachedRepository}
-                        </span>
-                      )}
+                    <span className="text-xs text-zinc-500">
+                      {formatTime(conversation.updatedAt)}
                     </span>
                   </Link>
                 </li>

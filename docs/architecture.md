@@ -36,8 +36,8 @@ OrbitEngine is a cloud platform where a user opens a chat alongside an engine, l
 │ Postgres │ │ GitHub  │ │ Vercel Sandbox           │
 │ (Auth.js │ │ App API │ │ (Firecracker microVMs)   │
 │  + state)│ │ (JWT +  │ │  - Persistent filesystem │
-│          │ │  inst.  │ │  - Git clone of repo     │
-│          │ │  token) │ │  - GITHUB_TOKEN env var  │
+│          │ │  inst.  │ │  - GITHUB_TOKEN env var  │
+│          │ │  token) │ │  - Agent clones repos    │
 └──────────┘ └─────────┘ └─────────────────────────┘
 ```
 
@@ -62,7 +62,6 @@ See `CONTEXT.md` for the full glossary. Key terms:
 - **Engine**: The cloud-side worker that does coding work on the user's behalf.
 - **Conversation**: A user's chat session. Owns exactly one sandbox for its lifetime.
 - **Sandbox**: Isolated, ephemeral execution environment. Only place code runs.
-- **Attached Repository**: Single repo a conversation works on. The sandbox clones it.
 
 ## Architecture Decision Records
 
@@ -105,7 +104,6 @@ sessions (database-backed)
 conversations
   id (PK, UUID)
   userId (FK→users)
-  attachedRepository (TEXT, e.g. "owner/repo")
   sandboxId (TEXT, Vercel Sandbox name)
   status ('open' | 'closed')
   createdAt, updatedAt
@@ -132,11 +130,10 @@ users 1──N sessions
 | Method | Route | Purpose | Auth |
 |--------|-------|---------|------|
 | GET/POST | `/api/auth/[...nextauth]` | Auth.js session management | Public |
-| GET | `/api/repos` | List GitHub repos accessible to user | Required |
+| GET | `/api/repos` | List GitHub repos accessible to user (for @-mention autocomplete) | Required |
 | GET | `/api/conversations` | List user's conversations | Required |
 | POST | `/api/conversations` | Create new conversation | Required |
 | GET | `/api/conversations/:id` | Fetch conversation + messages | Required (owner) |
-| PATCH | `/api/conversations/:id` | Attach a repository | Required (owner) |
 | DELETE | `/api/conversations/:id` | Close conversation, destroy sandbox | Required (owner) |
 | POST | `/api/conversations/:id/messages` | Send a user message | Required (owner) |
 | POST | `/api/conversations/:id/sandbox` | Provision or reopen sandbox | Required (owner) |
@@ -146,25 +143,27 @@ users 1──N sessions
 ```
 Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
        │                   │
-       │                   ├─ Clone attached repo (if any)
        │                   ├─ Inject GITHUB_TOKEN (short-lived, scoped)
-       │                   └─ Inject ATTACHED_REPOSITORY env var
+       │                   └─ Empty filesystem (no repo cloned yet)
        │
        ▼
-  User sends message ──► Store in Postgres ──► [Engine loop — not yet built]
-       │                                              │
-       │                                              ▼
-       │                                     Execute in sandbox
-       │                                     (read/write files, run tests)
-       │                                              │
-       │                                              ▼
-       │                                     Stream response back to chat
+  User sends "@owner/repo fix the bug"
+       │
+       ▼
+  Engine sees @mention ──► Clones repo via run_command tool
+       │                   git clone https://x-access-token:${GITHUB_TOKEN}@github.com/owner/repo.git .
+       │
+       ▼
+  Engine reads/edits files, runs tests in sandbox
+       │
+       ▼
+  Stream response back to chat
        │
        ▼
   Close conversation ──► Destroy sandbox (VM + filesystem)
        │                   Conversation + messages remain in Postgres
        ▼
-  Reopen conversation ──► Provision fresh sandbox (same attached repo)
+  Reopen conversation ──► Provision fresh sandbox (user re-clones via @mention)
 ```
 
 ## Security Model
@@ -187,24 +186,22 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 | Sidebar | `app/conversations/sidebar.tsx` | Server | Conversation list, user info, sign-out |
 | Conversation page | `app/conversations/[id]/page.tsx` | Server | Chat view: header, messages, composer |
 | Sandbox status | `app/conversations/[id]/sandbox-status.tsx` | Client | Auto-provision, status badge, close/reopen |
-| Message composer | `app/conversations/[id]/message-composer.tsx` | Client | @-mention repo picker, send message |
+| Streaming chat | `app/conversations/[id]/streaming-chat.tsx` | Client | Chat messages, @-mention repo picker, engine tool display |
 
 ## What's Built vs. What's Next
 
 ### Fully Implemented
 1. Auth system (GitHub OAuth, Postgres sessions)
-2. Conversation CRUD (create, list, fetch, attach repo, close, reopen)
+2. Conversation CRUD (create, list, fetch, close, reopen)
 3. Message system (send, display, persist)
-4. GitHub integration (App JWT, installation tokens, repo listing)
-5. Sandbox provisioning (Vercel Sandbox, persistent VMs, env injection, git clone)
-6. UI shell (landing page, conversations layout, sidebar, chat view, @-mention composer)
-7. Database schema (6 tables, indexes)
-8. Architecture documentation (16 ADRs, domain glossary)
+4. GitHub integration (App JWT, installation tokens, repo listing for @-mention)
+5. Sandbox provisioning (Vercel Sandbox, persistent VMs, GITHUB_TOKEN injection)
+6. Engine loop (Vercel AI SDK, tool calling: run_command, read_file, write_file, list_files)
+7. Agent-driven repo cloning (user types @owner/repo, agent clones via system prompt)
+8. UI shell (landing page, conversations layout, sidebar, chat view, @-mention autocomplete)
+9. Database schema (5 tables, indexes)
+10. Architecture documentation (16 ADRs, domain glossary)
 
-### Not Yet Built (Issue #5 scope and beyond)
-- **Engine loop**: Vercel AI SDK agent runtime with tool calling and streaming (ADR-0006, ADR-0013)
-- **AI provider integration**: OpenZen via Vercel AI SDK (ADR-0010)
+### Not Yet Built (Issue #7 scope and beyond)
 - **Engine write actions**: Create issues, open PRs, create repos from sandbox (ADR-0008)
-- **Message processing engine**: User messages stored but no assistant responses generated yet
-- **Streaming responses**: No streaming UI for engine output
 - **New project bootstrapping**: Creating repos from scratch (ADR-0015 second slice)

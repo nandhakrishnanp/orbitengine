@@ -80,6 +80,15 @@ export const SYSTEM_PROMPT = `You are OrbitEngine, an AI coding assistant runnin
 
 You have access to tools that let you interact with the sandbox filesystem and execute commands.
 
+## Cloning repositories
+
+If the user mentions a repository as @owner/repo, clone it immediately:
+  git clone https://x-access-token:\${GITHUB_TOKEN}@github.com/owner/repo.git .
+The GITHUB_TOKEN environment variable is a GitHub installation token with read/write access to the user's repositories.
+After cloning, work with the files normally.
+
+## Working with code
+
 When the user asks you to make changes to code:
 1. First read the relevant files to understand the current state
 2. Make the necessary edits using write_file

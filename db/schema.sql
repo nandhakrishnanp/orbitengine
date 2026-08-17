@@ -39,7 +39,6 @@ CREATE TABLE IF NOT EXISTS verification_token (
 CREATE TABLE IF NOT EXISTS conversations (
   id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
   "userId" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  "attachedRepository" TEXT,
   "sandboxId" TEXT,
   status TEXT NOT NULL DEFAULT 'open',
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
