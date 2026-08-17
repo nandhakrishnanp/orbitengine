@@ -3,17 +3,20 @@ import {
   createUIMessageStreamResponse,
   toUIMessageStream,
   convertToModelMessages,
-  UIMessage,
 } from "ai";
 import { Sandbox } from "@vercel/sandbox";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db";
 import { openzen } from "@/lib/ai";
 import { engineTools, SYSTEM_PROMPT } from "@/lib/engine";
+import {
+  listConversationMessages,
+  toUIMessage,
+} from "@/lib/messages";
 import { getInstallationTokenForUser } from "@/lib/github";
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -22,13 +25,6 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { messages } = (await request.json()) as {
-    messages: UIMessage[];
-  };
-
-  if (!messages?.length) {
-    return new Response("No messages", { status: 400 });
-  }
 
   const ownership = await pool.query(
     `SELECT id, "sandboxId", "attachedRepository"
@@ -59,9 +55,12 @@ export async function POST(
     );
   }
 
-  console.log("[engine] calling model with", messages.length, "messages");
+  console.log("[engine] loading persisted context");
 
-  const modelMessages = await convertToModelMessages(messages);
+  const history = await listConversationMessages(id);
+  const modelMessages = await convertToModelMessages(
+    history.map(toUIMessage)
+  );
 
   const result = streamText({
     model: openzen("hy3-free"),

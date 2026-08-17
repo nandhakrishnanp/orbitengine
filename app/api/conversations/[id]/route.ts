@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db";
+import { listConversationMessages } from "@/lib/messages";
 import { destroySandbox } from "@/lib/sandbox";
 
 export async function GET(
@@ -22,13 +23,7 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { rows: messages } = await pool.query(
-    `SELECT role, content, phase, "createdAt"
-     FROM messages
-     WHERE "conversationId" = $1
-     ORDER BY "createdAt"`,
-    [id]
-  );
+  const messages = await listConversationMessages(id);
 
   return NextResponse.json({
     conversation: conversationResult.rows[0],

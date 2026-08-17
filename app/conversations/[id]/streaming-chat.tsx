@@ -1,9 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GitBranch, Lock, Send, Sparkles, Square } from "lucide-react";
+import {
+  CircleCheck,
+  FileText,
+  FolderGit2,
+  GitBranch,
+  ListTree,
+  Lock,
+  Send,
+  Sparkles,
+  Square,
+  SquareTerminal,
+  XCircle,
+} from "lucide-react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type ToolUIPart } from "ai";
+import { DefaultChatTransport, type ToolUIPart, type UIMessage } from "ai";
+import type { BundledLanguage } from "shiki";
+import { CodeBlock } from "@/components/ai-elements/code-block";
 import {
   Conversation,
   ConversationContent,
@@ -55,17 +69,189 @@ const toolTitles: Record<string, string> = {
   create_repository: "Create repository",
 };
 
+const LANGUAGE_MAP: Record<string, BundledLanguage> = {
+  ts: "typescript",
+  tsx: "tsx",
+  mts: "typescript",
+  cts: "typescript",
+  js: "javascript",
+  jsx: "jsx",
+  mjs: "javascript",
+  cjs: "javascript",
+  json: "json",
+  jsonc: "json",
+  md: "markdown",
+  mdx: "mdx",
+  py: "python",
+  rs: "rust",
+  go: "go",
+  java: "java",
+  c: "c",
+  h: "c",
+  cpp: "cpp",
+  cc: "cpp",
+  hpp: "cpp",
+  cs: "csharp",
+  rb: "ruby",
+  php: "php",
+  sh: "shellscript",
+  bash: "shellscript",
+  zsh: "shellscript",
+  yml: "yaml",
+  yaml: "yaml",
+  toml: "toml",
+  html: "html",
+  htm: "html",
+  css: "css",
+  scss: "scss",
+  less: "less",
+  sql: "sql",
+  xml: "xml",
+  svg: "xml",
+  vue: "vue",
+  svelte: "svelte",
+  dockerfile: "dockerfile",
+};
+
+function languageFor(name: string): BundledLanguage {
+  const base = name.toLowerCase();
+  if (base === "dockerfile") return "dockerfile";
+  const ext = base.includes(".") ? (base.split(".").pop() ?? "") : "";
+  return LANGUAGE_MAP[ext] ?? "text";
+}
+
+const FILE_TOOLS = ["read_file", "write_file", "list_files"] as const;
+
+function FriendlyInput({
+  toolName,
+  input,
+}: {
+  toolName: string;
+  input: Record<string, unknown> | undefined;
+}) {
+  if (!input) return null;
+
+  if (toolName === "run_command") {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+        <SquareTerminal className="size-4 shrink-0 text-muted-foreground" />
+        <span className="font-mono text-xs">
+          {(input.command as string) || "Running command…"}
+        </span>
+      </div>
+    );
+  }
+
+  if ((FILE_TOOLS as readonly string[]).includes(toolName)) {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+        <FolderGit2 className="size-4 shrink-0" />
+        <span className="font-mono text-xs">
+          {(input.path as string) || "—"}
+        </span>
+      </div>
+    );
+  }
+
+  return <ToolInput input={input} />;
+}
+
+function FriendlyOutput({
+  toolName,
+  input,
+  output,
+}: {
+  toolName: string;
+  input: Record<string, unknown> | undefined;
+  output: Record<string, unknown> | undefined;
+}) {
+  const path = (input?.path as string) ?? "";
+
+  if (toolName === "read_file") {
+    const error = output?.error as string | undefined;
+    if (error) {
+      return (
+        <p className="flex items-center gap-2 text-sm text-red-500 dark:text-red-400">
+          <XCircle className="size-4 shrink-0" />
+          {error}
+        </p>
+      );
+    }
+    const content = output?.content as string | undefined;
+    if (typeof content === "string") {
+      return (
+        <div className="flex items-start gap-2">
+          <FileText className="mt-1 size-4 shrink-0 text-muted-foreground" />
+          <CodeBlock
+            className="border-none"
+            code={content}
+            language={languageFor(path)}
+          />
+        </div>
+      );
+    }
+    return null;
+  }
+
+  if (toolName === "write_file") {
+    const success = Boolean(output?.success);
+    const outPath = (output?.path as string) ?? path;
+    return (
+      <p
+        className={`flex items-center gap-2 text-sm ${
+          success
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-red-500 dark:text-red-400"
+        }`}
+      >
+        {success ? (
+          <CircleCheck className="size-4 shrink-0" />
+        ) : (
+          <XCircle className="size-4 shrink-0" />
+        )}
+        {success ? `Saved ${outPath}` : `Failed to write ${outPath}`}
+      </p>
+    );
+  }
+
+  if (toolName === "list_files") {
+    const entries = output?.entries as string | undefined;
+    if (!entries) return null;
+    let items: string[] = [];
+    try {
+      const parsed = JSON.parse(entries);
+      items = Array.isArray(parsed) ? parsed.map(String) : [entries];
+    } catch {
+      items = entries.split("\n").filter(Boolean);
+    }
+    return (
+      <div className="flex items-start gap-2">
+        <ListTree className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <ul className="space-y-0.5 font-mono text-xs text-zinc-500">
+          {items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
   const toolName = part.type.replace("tool-", "");
   const isRunCommand = toolName === "run_command";
   const isGitHubTool = toolName === "create_pull_request" || toolName === "create_issue" || toolName === "create_repository";
+  const isFileTool = (FILE_TOOLS as readonly string[]).includes(toolName);
   const output = part.output as Record<string, unknown> | undefined;
+  const input = part.input as Record<string, unknown> | undefined;
 
   const inputLabel = (() => {
     const input = part.input as Record<string, string> | undefined;
     if (!input) return null;
     if (toolName === "run_command") return input.command;
-    if (toolName === "read_file" || toolName === "write_file" || toolName === "list_files") return input.path;
+    if (FILE_TOOLS.includes(toolName as (typeof FILE_TOOLS)[number])) return input.path;
     if (toolName === "create_pull_request") return `${input.owner}/${input.repo}`;
     if (toolName === "create_issue") return `${input.owner}/${input.repo}`;
     if (toolName === "create_repository") return input.name;
@@ -76,7 +262,7 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
     <Tool open={part.state === "output-available" || part.state === "output-error"}>
       <ToolHeader title={`${toolTitles[toolName] ?? toolName}  ${inputLabel ? `— ${inputLabel}` : ""}`} type={part.type} state={part.state} />
       <ToolContent>
-        <ToolInput input={part.input} />
+        <FriendlyInput toolName={toolName} input={input} />
         {isRunCommand && output && (
           <Terminal
             output={
@@ -97,7 +283,10 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
             {output.url as string}
           </a>
         )}
-        {!isRunCommand && !isGitHubTool && (
+        {isFileTool && (
+          <FriendlyOutput toolName={toolName} input={input} output={output} />
+        )}
+        {!isRunCommand && !isGitHubTool && !isFileTool && (
           <ToolOutput output={part.output} errorText={part.errorText} />
         )}
       </ToolContent>
@@ -110,7 +299,7 @@ export default function StreamingChat({
   initialMessages,
 }: {
   conversationId: string;
-  initialMessages: Array<{ role: "user" | "assistant"; content: string }>;
+  initialMessages: UIMessage[];
 }) {
   const { messages, setMessages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
@@ -118,6 +307,25 @@ export default function StreamingChat({
       body: { conversationId },
     }),
     id: conversationId,
+    onFinish: async ({ message }) => {
+      const text = message.parts
+        .filter((p) => p.type === "text")
+        .map((p) => p.text)
+        .join("\n");
+      try {
+        await fetch(`/api/conversations/${conversationId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "assistant",
+            content: text,
+            parts: message.parts,
+          }),
+        });
+      } catch {
+        // Persistence must never break the chat — ignore non-fatal failures.
+      }
+    },
   });
 
   const [input, setInput] = useState("");
@@ -171,21 +379,25 @@ export default function StreamingChat({
 
   useEffect(() => {
     if (initialMessages.length > 0 && messages.length === 0) {
-      setMessages(
-        initialMessages.map((m, i) => ({
-          id: `init-${i}`,
-          role: m.role,
-          parts: [{ type: "text" as const, text: m.content }],
-        }))
-      );
+      setMessages(initialMessages);
     }
   }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || isStreaming) return;
-    sendMessage({ text: input.trim() });
+    const text = input.trim();
     setInput("");
+    try {
+      await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+    } catch {
+      // Non-fatal: the engine builds context from the DB; still send anyway.
+    }
+    sendMessage({ text });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -219,29 +431,45 @@ export default function StreamingChat({
             />
           ) : (
             messages.map((message) => {
-              const textParts = message.parts.filter((p) => p.type === "text");
-              const reasoningParts = message.parts.filter((p) => p.type === "reasoning");
-              const toolParts = message.parts.filter((p) => p.type.startsWith("tool-")) as ToolUIPart<EngineTools>[];
-              const hasReasoning = reasoningParts.length > 0;
-              const reasoningText = reasoningParts.map((p) => p.text).join("");
-              const isLastMessage = message.id === messages[messages.length - 1]?.id;
+              const isLastMessage =
+                message.id === messages[messages.length - 1]?.id;
+              const hasVisible = message.parts.some(
+                (p) => p.type === "text" || p.type.startsWith("tool-")
+              );
 
               return (
                 <Message key={message.id} from={message.role}>
                   <MessageContent>
-                    {hasReasoning && (
-                      <Reasoning isStreaming={isStreaming && isLastMessage}>
-                        <ReasoningTrigger />
-                        <ReasoningContent>{reasoningText}</ReasoningContent>
-                      </Reasoning>
-                    )}
-                    {textParts.map((part, i) => (
-                      <MessageResponse key={i}>{part.text}</MessageResponse>
-                    ))}
-                    {toolParts.map((part, i) => (
-                      <ToolCall key={i} part={part} />
-                    ))}
-                    {isStreaming && isLastMessage && !textParts.length && !toolParts.length && (
+                    {message.parts.map((part, i) => {
+                      if (part.type === "reasoning") {
+                        return (
+                          <Reasoning
+                            key={i}
+                            isStreaming={isStreaming && isLastMessage}
+                          >
+                            <ReasoningTrigger />
+                            <ReasoningContent>{part.text}</ReasoningContent>
+                          </Reasoning>
+                        );
+                      }
+                      if (part.type === "text") {
+                        return (
+                          <MessageResponse key={i}>
+                            {part.text}
+                          </MessageResponse>
+                        );
+                      }
+                      if (part.type.startsWith("tool-")) {
+                        return (
+                          <ToolCall
+                            key={i}
+                            part={part as ToolUIPart<EngineTools>}
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+                    {isStreaming && isLastMessage && !hasVisible && (
                       <span className="inline-block h-4 w-1.5 animate-pulse bg-muted-foreground/50" />
                     )}
                   </MessageContent>

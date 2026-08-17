@@ -50,9 +50,12 @@ CREATE TABLE IF NOT EXISTS messages (
   "conversationId" TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
+  parts JSONB,
   phase TEXT,
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS parts JSONB;
 
 CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations ("userId");
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages ("conversationId");

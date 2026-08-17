@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { MessageSquare, MonitorIcon } from "lucide-react";
+import type { UIMessage } from "ai";
 import { apiFetch } from "@/lib/api";
 import SandboxStatus from "./sandbox-status";
 import StreamingChat from "./streaming-chat";
 
 type Message = {
+  id: string;
   role: string;
   content: string;
+  parts: UIMessage["parts"] | null;
   phase: string | null;
   createdAt: string;
 };
@@ -22,18 +25,25 @@ export default async function ConversationPage({
   const res = await apiFetch(`/api/conversations/${id}`);
   if (res.status === 401) redirect("/");
   if (res.status === 404) notFound();
-  const { conversation, messages } = (await res.json()) as {
+
+  const data = (await res.json().catch(() => null)) as {
     conversation: {
       id: string;
       status: string;
       sandboxId: string | null;
     };
     messages: Message[];
-  };
+  } | null;
+  if (!data?.conversation) notFound();
+  const { conversation, messages } = data;
 
-  const chatMessages = messages.map((m) => ({
+  const chatMessages: UIMessage[] = messages.map((m) => ({
+    id: m.id,
     role: m.role as "user" | "assistant",
-    content: m.content,
+    parts:
+      m.parts && m.parts.length > 0
+        ? m.parts
+        : ([{ type: "text", text: m.content }] as UIMessage["parts"]),
   }));
 
   return (

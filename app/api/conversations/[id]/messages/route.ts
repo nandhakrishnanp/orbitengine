@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { pool } from "@/lib/db";
+import { saveUserMessage, saveAssistantMessage } from "@/lib/messages";
+import type { UIMessage } from "ai";
 
 export async function POST(
   request: Request,
@@ -12,24 +13,33 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { content } = await request.json();
+  const body = await request.json().catch(() => ({}));
+  const { role = "user", content, parts } = body as {
+    role?: "user" | "assistant";
+    content?: string;
+    parts?: UIMessage["parts"];
+  };
+
   const trimmed = String(content ?? "").trim();
-  if (!trimmed) {
+  if (!trimmed && !parts?.length) {
     return NextResponse.json({ error: "Empty message" }, { status: 400 });
   }
 
-  const result = await pool.query(
-    `INSERT INTO messages ("conversationId", role, content)
-     SELECT $1, 'user', $2
-     FROM conversations
-     WHERE id = $1 AND "userId" = $3
-     RETURNING id, role, content, phase, "createdAt"`,
-    [id, trimmed, session.user.id]
-  );
+  if (role === "assistant") {
+    const message = await saveAssistantMessage(id, session.user.id, {
+      content: trimmed,
+      parts: parts ?? [],
+    });
+    if (!message) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    return NextResponse.json({ message }, { status: 201 });
+  }
 
-  if (result.rowCount === 0) {
+  const message = await saveUserMessage(id, session.user.id, trimmed);
+  if (!message) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ message: result.rows[0] }, { status: 201 });
+  return NextResponse.json({ message }, { status: 201 });
 }
