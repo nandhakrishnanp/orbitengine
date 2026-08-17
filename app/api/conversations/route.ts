@@ -9,7 +9,7 @@ export async function GET() {
   }
 
   const { rows } = await pool.query(
-    `SELECT c.id, c.status, c."attachedRepository", c."createdAt", c."updatedAt",
+    `SELECT c.id, c.status, c."createdAt", c."updatedAt",
             (SELECT m.content FROM messages m
              WHERE m."conversationId" = c.id AND m.role = 'user'
              ORDER BY m."createdAt" LIMIT 1) AS title

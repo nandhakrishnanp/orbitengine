@@ -29,7 +29,6 @@ export default async function ConversationsLayout({
 type Conversation = {
   id: string;
   status: string;
-  attachedRepository: string | null;
   createdAt: string;
   updatedAt: string;
   title: string | null;

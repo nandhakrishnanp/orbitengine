@@ -15,7 +15,7 @@ export async function POST(
   const { id } = await params;
 
   const ownership = await pool.query(
-    `SELECT id, status, "attachedRepository", "sandboxId"
+    `SELECT id, status, "sandboxId"
      FROM conversations WHERE id = $1 AND "userId" = $2`,
     [id, session.user.id]
   );
@@ -44,14 +44,13 @@ export async function POST(
   const sandboxId = await provisionSandbox({
     conversationId: id,
     userId: session.user.id,
-    attachedRepository: conversation.attachedRepository ?? null,
   });
 
   const { rows } = await pool.query(
     `UPDATE conversations
      SET "sandboxId" = $1, status = 'open', "updatedAt" = now()
      WHERE id = $2
-     RETURNING id, status, "attachedRepository", "sandboxId", "createdAt"`,
+     RETURNING id, status, "sandboxId", "createdAt"`,
     [sandboxId, id]
   );
 
