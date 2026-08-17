@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LogOut, MessageSquare, Orbit, Plus } from "lucide-react";
+import { LogOut, MessageSquare, Orbit, Plus, Trash2 } from "lucide-react";
 
 type User = {
   name?: string | null;
@@ -78,10 +78,13 @@ export default function Sidebar({
             {conversations.map((conversation) => {
               const active = pathname === `/conversations/${conversation.id}`;
               return (
-                <li key={conversation.id}>
+                <li
+                  key={conversation.id}
+                  className="group relative"
+                >
                   <Link
                     href={`/conversations/${conversation.id}`}
-                    className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 transition-colors ${
+                    className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 pr-9 transition-colors ${
                       active
                         ? "bg-zinc-200/70 dark:bg-zinc-800"
                         : "hover:bg-zinc-200/40 dark:hover:bg-zinc-800/60"
@@ -96,6 +99,33 @@ export default function Sidebar({
                       {formatTime(conversation.updatedAt)}
                     </span>
                   </Link>
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      if (
+                        !confirm(
+                          "Delete this conversation and its history? This cannot be undone."
+                        )
+                      ) {
+                        return;
+                      }
+                      const res = await fetch(
+                        `/api/conversations/${conversation.id}`,
+                        { method: "DELETE" }
+                      );
+                      if (res.ok) {
+                        if (active) {
+                          router.push("/conversations");
+                        }
+                        router.refresh();
+                      }
+                    }}
+                    title="Delete"
+                    aria-label={`Delete ${conversation.title ?? "conversation"}`}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-200/60 hover:text-red-600 group-hover:opacity-100 focus:opacity-100 dark:hover:bg-zinc-800 dark:hover:text-red-400"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
                 </li>
               );
             })}

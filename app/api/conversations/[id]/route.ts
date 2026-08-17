@@ -50,16 +50,16 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Destroy the sandbox; conversation history stays untouched (ADR-0001).
+  const sandboxId = ownership.rows[0].sandboxId;
+
+  // Destroy the sandbox, then permanently delete the conversation and its
+  // messages (cascaded via the foreign key).
   await destroySandbox(id);
 
-  const { rows } = await pool.query(
-    `UPDATE conversations
-     SET status = 'closed', "sandboxId" = NULL, "updatedAt" = now()
-     WHERE id = $1
-     RETURNING id, status, "createdAt"`,
-    [id]
+  await pool.query(
+    `DELETE FROM conversations WHERE id = $1 AND "userId" = $2`,
+    [id, session.user.id]
   );
 
-  return NextResponse.json({ conversation: rows[0] });
+  return NextResponse.json({ deleted: true, sandboxId });
 }
