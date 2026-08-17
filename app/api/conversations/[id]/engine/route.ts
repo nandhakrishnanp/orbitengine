@@ -10,6 +10,7 @@ import { auth } from "@/auth";
 import { pool } from "@/lib/db";
 import { openzen } from "@/lib/ai";
 import { engineTools, SYSTEM_PROMPT } from "@/lib/engine";
+import { getInstallationTokenForUser } from "@/lib/github";
 
 export async function POST(
   request: Request,
@@ -48,6 +49,16 @@ export async function POST(
 
   const sandbox = await Sandbox.get({ name: conversation.sandboxId });
 
+  let githubToken: string;
+  try {
+    githubToken = await getInstallationTokenForUser(session.user.id);
+  } catch {
+    return new Response(
+      JSON.stringify({ error: "GitHub token unavailable" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   console.log("[engine] calling model with", messages.length, "messages");
 
   const modelMessages = await convertToModelMessages(messages);
@@ -56,7 +67,7 @@ export async function POST(
     model: openzen("hy3-free"),
     system: SYSTEM_PROMPT,
     messages: modelMessages,
-    tools: engineTools(sandbox),
+    tools: engineTools(sandbox, githubToken),
     maxRetries: 5,
     stopWhen: ({ steps }) => steps.length >= 10,
     onStepFinish: async ({ text, toolCalls, toolResults, finishReason }) => {

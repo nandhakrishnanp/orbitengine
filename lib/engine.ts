@@ -2,7 +2,31 @@ import { Sandbox } from "@vercel/sandbox";
 import { tool } from "ai";
 import { z } from "zod";
 
-export function engineTools(sandbox: Sandbox) {
+const API_BASE = "https://api.github.com";
+
+async function githubApi<T>(
+  path: string,
+  token: string,
+  init?: RequestInit
+): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "orbitengine",
+      ...(init?.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`GitHub API ${res.status} for ${path}: ${detail}`);
+  }
+  return (await res.json()) as T;
+}
+
+export function engineTools(sandbox: Sandbox, githubToken: string) {
   return {
     run_command: tool({
       description:
@@ -73,12 +97,132 @@ export function engineTools(sandbox: Sandbox) {
         return { entries: stdout };
       },
     }),
+
+    create_pull_request: tool({
+      description:
+        "Open a pull request on GitHub. Commit changes to a feature branch, push it, then call this tool to create the PR against the base branch.",
+      inputSchema: z.object({
+        owner: z.string().describe("Repository owner (e.g. 'octocat')"),
+        repo: z.string().describe("Repository name (e.g. 'my-repo')"),
+        title: z.string().describe("Pull request title"),
+        head: z
+          .string()
+          .describe("Head branch name (e.g. 'fix/bug') — must be pushed already"),
+        base: z
+          .string()
+          .describe("Base branch to merge into (e.g. 'main')"),
+        body: z
+          .string()
+          .optional()
+          .describe("Pull request description in Markdown"),
+      }),
+      execute: async ({ owner, repo, title, head, base, body }) => {
+        const pr = await githubApi<{
+          number: number;
+          html_url: string;
+          title: string;
+        }>(
+          `/repos/${owner}/${repo}/pulls`,
+          githubToken,
+          {
+            method: "POST",
+            body: JSON.stringify({ title, head, base, body: body ?? "" }),
+          }
+        );
+        return {
+          number: pr.number,
+          url: pr.html_url,
+          title: pr.title,
+        };
+      },
+    }),
+
+    create_issue: tool({
+      description:
+        "Create a GitHub issue on a repository. Use this to record bugs, feature requests, or tasks.",
+      inputSchema: z.object({
+        owner: z.string().describe("Repository owner (e.g. 'octocat')"),
+        repo: z.string().describe("Repository name (e.g. 'my-repo')"),
+        title: z.string().describe("Issue title"),
+        body: z
+          .string()
+          .optional()
+          .describe("Issue description in Markdown"),
+        labels: z
+          .array(z.string())
+          .optional()
+          .describe("Labels to apply (e.g. ['bug', 'enhancement'])"),
+      }),
+      execute: async ({ owner, repo, title, body, labels }) => {
+        const issue = await githubApi<{
+          number: number;
+          html_url: string;
+          title: string;
+        }>(
+          `/repos/${owner}/${repo}/issues`,
+          githubToken,
+          {
+            method: "POST",
+            body: JSON.stringify({ title, body: body ?? "", labels: labels ?? [] }),
+          }
+        );
+        return {
+          number: issue.number,
+          url: issue.html_url,
+          title: issue.title,
+        };
+      },
+    }),
+
+    create_repository: tool({
+      description:
+        "Create a new GitHub repository. Use this to bootstrap a new project.",
+      inputSchema: z.object({
+        name: z.string().describe("Repository name (e.g. 'my-new-project')"),
+        description: z
+          .string()
+          .optional()
+          .describe("Repository description"),
+        private: z
+          .boolean()
+          .optional()
+          .describe("Whether the repo should be private (default: false)"),
+      }),
+      execute: async ({ name, description, private: isPrivate }) => {
+        const repo = await githubApi<{
+          full_name: string;
+          html_url: string;
+          clone_url: string;
+          name: string;
+          owner: { login: string };
+        }>(
+          "/user/repos",
+          githubToken,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              name,
+              description: description ?? "",
+              private: isPrivate ?? false,
+              auto_init: false,
+            }),
+          }
+        );
+        return {
+          fullName: repo.full_name,
+          url: repo.html_url,
+          cloneUrl: repo.clone_url,
+          owner: repo.owner.login,
+          name: repo.name,
+        };
+      },
+    }),
   };
 }
 
 export const SYSTEM_PROMPT = `You are OrbitEngine, an AI coding assistant running inside an isolated cloud sandbox.
 
-You have access to tools that let you interact with the sandbox filesystem and execute commands.
+You have access to tools that let you interact with the sandbox filesystem, execute commands, and interact with GitHub.
 
 ## Cloning repositories
 
@@ -94,6 +238,30 @@ When the user asks you to make changes to code:
 2. Make the necessary edits using write_file
 3. Run tests or build commands to verify your changes
 4. Explain what you did
+
+## Opening pull requests
+
+When your changes are ready and verified:
+1. Create a feature branch: git checkout -b <branch-name>
+2. Stage and commit your changes: git add -A && git commit -m "<description>"
+3. Push the branch: git push origin <branch-name>
+4. Use the create_pull_request tool to open the PR against the base branch
+5. Share the PR link with the user
+
+Never push directly to main or master. Always use a feature branch.
+
+## Creating issues
+
+If the user asks to record a bug, feature request, or task, use the create_issue tool.
+Include a clear title and detailed description. Add labels if appropriate.
+
+## Bootstrapping new projects
+
+If the user asks to create a new project from scratch:
+1. Use create_repository to create the repo on GitHub
+2. Clone it into the sandbox
+3. Build the project scaffold
+4. Commit and push the initial code
 
 Be concise and direct. Focus on the task at hand.
 Always verify your changes by running relevant tests or build commands when possible.`;

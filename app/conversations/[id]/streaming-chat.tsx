@@ -39,6 +39,9 @@ type EngineTools = {
   read_file: { input: { path: string }; output: { content?: string; error?: string } };
   write_file: { input: { path: string; content: string }; output: { success: boolean; path: string } };
   list_files: { input: { path: string }; output: { entries: string } };
+  create_pull_request: { input: { owner: string; repo: string; title: string; head: string; base: string; body?: string }; output: { number: number; url: string; title: string } };
+  create_issue: { input: { owner: string; repo: string; title: string; body?: string; labels?: string[] }; output: { number: number; url: string; title: string } };
+  create_repository: { input: { name: string; description?: string; private?: boolean }; output: { fullName: string; url: string; cloneUrl: string; owner: string; name: string } };
 };
 
 const toolTitles: Record<string, string> = {
@@ -46,11 +49,15 @@ const toolTitles: Record<string, string> = {
   read_file: "Read file",
   write_file: "Write file",
   list_files: "List files",
+  create_pull_request: "Open pull request",
+  create_issue: "Create issue",
+  create_repository: "Create repository",
 };
 
 function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
   const toolName = part.type.replace("tool-", "");
   const isRunCommand = toolName === "run_command";
+  const isGitHubTool = toolName === "create_pull_request" || toolName === "create_issue" || toolName === "create_repository";
   const output = part.output as Record<string, unknown> | undefined;
 
   const inputLabel = (() => {
@@ -58,6 +65,9 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
     if (!input) return null;
     if (toolName === "run_command") return input.command;
     if (toolName === "read_file" || toolName === "write_file" || toolName === "list_files") return input.path;
+    if (toolName === "create_pull_request") return `${input.owner}/${input.repo}`;
+    if (toolName === "create_issue") return `${input.owner}/${input.repo}`;
+    if (toolName === "create_repository") return input.name;
     return null;
   })();
 
@@ -76,7 +86,17 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
             isStreaming={part.state === "input-available"}
           />
         )}
-        {!isRunCommand && (
+        {isGitHubTool && output && Boolean(output.url) && (
+          <a
+            href={output.url as string}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-sm font-medium text-muted-foreground hover:underline"
+          >
+            {output.url as string}
+          </a>
+        )}
+        {!isRunCommand && !isGitHubTool && (
           <ToolOutput output={part.output} errorText={part.errorText} />
         )}
       </ToolContent>

@@ -1,35 +1,38 @@
 # OrbitEngine
 
 Chat alongside a coding engine, wired to your GitHub. OrbitEngine is a cloud
-platform where you open a conversation, attach one of your repositories, and the
-engine — running entirely in the cloud, in an isolated sandbox per conversation —
-reads the code, makes changes, runs the tests, and hands back a pull request.
+platform where you open a conversation, and the engine — running entirely in
+the cloud, in an isolated sandbox per conversation — reads your code, makes
+changes, runs the tests, and hands back a pull request.
 
 **You only ever talk in chat and review the result.** Nothing runs on your
 machine; your local repo is never touched.
 
-## Status
+## What's Working
 
-Early MVP. Live today:
+- **GitHub sign-in** (Auth.js) with sessions persisted in Postgres
+- **Conversations** that persist across visits, with full chat history
+- **Engine loop** powered by Vercel AI SDK with tool calling:
+  - `run_command` — execute shell commands in the sandbox
+  - `read_file` / `write_file` / `list_files` — work with the filesystem
+  - `create_pull_request` — open a PR on GitHub when changes are ready
+  - `create_issue` — create issues from chat
+  - `create_repository` — bootstrap new projects
+- **Agent-driven repo cloning** — type `@owner/repo` in chat and the engine clones it
+- **@-mention autocomplete** — pick repos from your GitHub installations
+- **Streaming responses** with collapsible reasoning and tool call cards
+- **Sandbox lifecycle** — each conversation gets its own ephemeral Firecracker microVM
 
-- GitHub sign-in (Auth.js) with sessions persisted in Postgres — you stay signed
-  in across visits
-- Conversations you can start, list, reopen, and send messages into; everything
-  persists and survives reloads
-
-On the way: attach a repository, the sandboxed engine loop (read / edit / test
-/ push), open PRs, create issues, and bootstrap brand-new projects.
-
-## Tech stack
+## Tech Stack
 
 - **Next.js 16** (App Router, TypeScript, Tailwind), deployed on Vercel
 - **Auth.js** (next-auth) with the GitHub provider; **PostgreSQL** session store
   via `@auth/pg-adapter`
-- **PostgreSQL** for conversations and messages
-- Planned: Vercel Sandbox SDK (one ephemeral sandbox per conversation) and the
-  Vercel AI SDK (server-side engine loop)
+- **Vercel Sandbox SDK** — one ephemeral sandbox per conversation
+- **Vercel AI SDK** — server-side engine loop with tool calling and streaming
+- **OpenZen** — OpenAI-compatible AI provider
 
-## Getting started
+## Getting Started
 
 Prerequisites: **Node 24+**, **Docker** (for the local Postgres).
 
@@ -76,16 +79,23 @@ npm run dev
 
 Open http://localhost:3001, sign in with GitHub, and start a conversation.
 
-## Project layout
+## Project Layout
 
 ```
 app/                    Next.js App Router (pages + /api endpoints)
-  api/                  REST endpoints (auth, conversations, messages)
-  conversations/        conversation list + detail UI
+  api/                  REST endpoints (auth, conversations, repos)
+  conversations/        conversation list + chat UI
 auth.ts                 Auth.js config (GitHub provider, Postgres adapter)
-db/schema.sql           Idempotent Postgres schema (auth, conversations, messages)
-lib/                    db pool, API fetch helpers
-docs/adr/               Architecture Decision Records (0001–0016)
+db/schema.sql           Idempotent Postgres schema
+lib/
+  ai.ts                 OpenZen AI client
+  engine.ts             System prompt + engine tools (run, read, write, PR, issue, repo)
+  github.ts             GitHub App JWT, installation tokens, repo listing
+  sandbox.ts            Vercel Sandbox lifecycle
+docs/
+  adr/                  Architecture Decision Records (0001–0016)
+  architecture.md       System architecture overview
+  PRD.md                Product requirements document
 CONTEXT.md              Domain glossary
 ```
 

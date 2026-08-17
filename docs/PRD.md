@@ -51,23 +51,22 @@ The MVP delivers the core loop: a user attaches a repository, chats with the eng
 
 ## Epic 3: Repository Attachment
 
-### Status: COMPLETE
+### Status: COMPLETE (agent-driven)
 
 | Requirement | Status | Details |
 |-------------|--------|---------|
-| @-mention repo picker | Done | Client component with keyboard navigation |
+| @-mention repo picker | Done | Client component with keyboard navigation, autocomplete |
 | List accessible repos | Done | GET `/api/repos` — via GitHub installation API |
-| Attach repo to conversation | Done | PATCH `/api/conversations/:id` with `attachedRepository` |
-| Validate repo access | Done | Checks against user's installation tokens |
-| Display attached repo | Done | Header badge with link to GitHub |
+| Agent-driven cloning | Done | User types @owner/repo, agent clones via system prompt |
+| No platform-side state | Done | No attachedRepository column, no PATCH endpoint |
 
-**Key files**: `app/conversations/[id]/message-composer.tsx`, `app/api/repos/route.ts`, `lib/github.ts`
+**Key files**: `app/conversations/[id]/streaming-chat.tsx`, `app/api/repos/route.ts`, `lib/github.ts`
 
 ---
 
 ## Epic 4: Sandbox Lifecycle (Issue #5)
 
-### Status: INFRASTRUCTURE COMPLETE — Engine loop pending
+### Status: COMPLETE
 
 | Requirement | Status | Details |
 |-------------|--------|---------|
@@ -77,8 +76,7 @@ The MVP delivers the core loop: a user attaches a repository, chats with the eng
 | Destroy sandbox on close | Done | `DELETE /api/conversations/:id` calls `destroySandbox()` |
 | Fresh sandbox on reopen | Done | POST endpoint provisions new sandbox, clears old sandboxId |
 | Inject short-lived GitHub token | Done | `GITHUB_TOKEN` env var from installation token |
-| Inject attached repo info | Done | `ATTACHED_REPOSITORY` and `GITHUB_REPOSITORY_URL` env vars |
-| Clone attached repo into sandbox | Done | `source.type: "git"` with token auth |
+| Agent-driven repo cloning | Done | Agent clones repos via system prompt when user types @owner/repo |
 | Conversation history survives close | Done | Only sandbox destroyed; messages remain in Postgres |
 
 **Key files**: `lib/sandbox.ts`, `app/api/conversations/[id]/sandbox/route.ts`, `app/conversations/[id]/sandbox-status.tsx`
@@ -115,6 +113,7 @@ The MVP delivers the core loop: a user attaches a repository, chats with the eng
 | OpenZen as AI provider | Done | ADR-0010 (hy3-free model) |
 | Server-side engine loop | Done | ADR-0013 |
 | Tool calling (file read/write, test exec) | Done | ADR-0006, ADR-0008 |
+| GitHub write tools (PR, issue, repo) | Done | ADR-0008 |
 | Streaming output to chat | Done | ADR-0006 |
 | Multi-step tool loop (up to 10 steps) | Done | `stopWhen` in `streamText` |
 
@@ -124,12 +123,12 @@ The MVP delivers the core loop: a user attaches a repository, chats with the eng
 
 ## Epic 7: New Project Bootstrapping
 
-### Status: NOT STARTED
+### Status: COMPLETE
 
 | Requirement | Status | ADR |
 |-------------|--------|-----|
-| Bootstrap new repo from scratch | Not started | ADR-0015 |
-| Create GitHub repo via API | Not started | ADR-0008 |
+| Bootstrap new repo from scratch | Done | ADR-0015 |
+| Create GitHub repo via API | Done | ADR-0008 (`create_repository` tool) |
 
 ---
 
@@ -140,7 +139,6 @@ The MVP delivers the core loop: a user attaches a repository, chats with the eng
 conversations (
   id UUID PK,
   userId TEXT FK→users,
-  attachedRepository TEXT,       -- e.g. "owner/repo"
   sandboxId TEXT,                -- Vercel Sandbox name
   status TEXT DEFAULT 'open',    -- 'open' | 'closed'
   createdAt TIMESTAMPTZ,
@@ -201,8 +199,8 @@ GitHub issues follow the conventions in `docs/agents/issue-tracker.md` with labe
 | #4 | Attach one repository | Closed |
 | #5 | Sandbox lifecycle per conversation | Closed |
 | #6 | Engine chat loop (streaming + phases) | Closed |
-| #7 | Clone repo into sandbox + read files | Open |
+| #7 | Clone repo into sandbox + read files | Closed |
 | #8 | Edit/write files + run commands | Closed |
-| #9 | Open a pull request from chat | Open |
-| #10 | Create a GitHub issue from chat | Open |
-| #11 | Bootstrap a new repository | Open |
+| #9 | Open a pull request from chat | Closed |
+| #10 | Create a GitHub issue from chat | Closed |
+| #11 | Bootstrap a new repository | Closed |

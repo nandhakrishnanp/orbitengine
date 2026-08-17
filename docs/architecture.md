@@ -157,7 +157,13 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
   Engine reads/edits files, runs tests in sandbox
        │
        ▼
-  Stream response back to chat
+  When changes are ready:
+       ├─ create_pull_request ──► Opens PR on GitHub, returns link
+       ├─ create_issue ─────────► Creates issue on GitHub, returns link
+       └─ create_repository ──► Creates new repo (bootstrapping)
+       │
+       ▼
+  Stream response back to chat (with PR/issue links)
        │
        ▼
   Close conversation ──► Destroy sandbox (VM + filesystem)
@@ -198,10 +204,10 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 5. Sandbox provisioning (Vercel Sandbox, persistent VMs, GITHUB_TOKEN injection)
 6. Engine loop (Vercel AI SDK, tool calling: run_command, read_file, write_file, list_files)
 7. Agent-driven repo cloning (user types @owner/repo, agent clones via system prompt)
-8. UI shell (landing page, conversations layout, sidebar, chat view, @-mention autocomplete)
-9. Database schema (5 tables, indexes)
-10. Architecture documentation (16 ADRs, domain glossary)
+8. GitHub write tools (create_pull_request, create_issue, create_repository)
+9. UI shell (landing page, conversations layout, sidebar, chat view, @-mention autocomplete)
+10. Database schema (5 tables, indexes)
+11. Architecture documentation (16 ADRs, domain glossary)
 
-### Not Yet Built (Issue #7 scope and beyond)
-- **Engine write actions**: Create issues, open PRs, create repos from sandbox (ADR-0008)
-- **New project bootstrapping**: Creating repos from scratch (ADR-0015 second slice)
+### Not Yet Built
+- (none — MVP is complete)
