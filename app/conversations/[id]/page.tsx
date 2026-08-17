@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { MonitorIcon } from "lucide-react";
+import { MessageSquare, MonitorIcon } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import SandboxStatus from "./sandbox-status";
 import StreamingChat from "./streaming-chat";
@@ -39,7 +39,8 @@ export default async function ConversationPage({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center gap-4 border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
-        <span className="text-sm font-semibold">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <MessageSquare className="size-4 text-zinc-500 dark:text-zinc-400" />
           {conversation.id.slice(0, 8)}
         </span>
         <SandboxStatus

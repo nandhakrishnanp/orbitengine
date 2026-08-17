@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { LogOut, MessageSquare, Orbit, Plus } from "lucide-react";
 
 type User = {
   name?: string | null;
@@ -47,7 +48,10 @@ export default function Sidebar({
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex items-center justify-between px-4 py-3">
-        <span className="text-sm font-semibold tracking-tight">OrbitEngine</span>
+        <span className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+          <Orbit className="size-4" />
+          OrbitEngine
+        </span>
         <button
           onClick={async () => {
             const res = await fetch("/api/conversations", { method: "POST" });
@@ -56,17 +60,19 @@ export default function Sidebar({
               router.push(`/conversations/${conversation.id}`);
             }
           }}
-          className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
         >
+          <Plus className="size-4" />
           New chat
         </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-2">
         {conversations.length === 0 ? (
-          <p className="px-2 py-4 text-sm text-zinc-500">
-            No conversations yet.
-          </p>
+          <div className="flex flex-col items-center gap-2 px-2 py-8 text-zinc-500">
+            <MessageSquare className="size-5" />
+            <p className="text-sm">No conversations yet.</p>
+          </div>
         ) : (
           <ul className="flex flex-col gap-0.5">
             {conversations.map((conversation) => {
@@ -123,20 +129,7 @@ export default function Sidebar({
           title="Sign out"
           className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
+          <LogOut className="size-4" />
         </button>
       </div>
     </aside>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 
 export default function ConversationsEmpty() {
   const router = useRouter();
@@ -20,8 +21,9 @@ export default function ConversationsEmpty() {
             router.push(`/conversations/${conversation.id}`);
           }
         }}
-        className="rounded-full bg-zinc-900 px-5 py-2 font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-black dark:hover:bg-zinc-300"
+        className="flex items-center gap-2 rounded-full bg-zinc-900 px-5 py-2 font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-black dark:hover:bg-zinc-300"
       >
+        <Plus className="size-4" />
         New conversation
       </button>
     </div>

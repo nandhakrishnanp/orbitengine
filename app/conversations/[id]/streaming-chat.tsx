@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GitBranch, Lock, Send, Sparkles, Square } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type ToolUIPart } from "ai";
 import {
@@ -212,6 +213,7 @@ export default function StreamingChat({
         <ConversationContent>
           {messages.length === 0 ? (
             <ConversationEmptyState
+              icon={<Sparkles className="size-6" />}
               title="Work with the engine"
               description="Describe the fix or change you want made. The engine will read your code, make edits, and run tests in an isolated sandbox."
             />
@@ -271,11 +273,15 @@ export default function StreamingChat({
                           : ""
                       }`}
                     >
-                      <span className="truncate font-medium">
-                        {repo.fullName}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <GitBranch className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
+                        <span className="truncate font-medium">
+                          {repo.fullName}
+                        </span>
                       </span>
                       {repo.private && (
-                        <span className="ml-2 shrink-0 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                        <span className="ml-2 flex shrink-0 items-center gap-1 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                          <Lock className="size-3" />
                           private
                         </span>
                       )}
@@ -303,17 +309,19 @@ export default function StreamingChat({
               <button
                 type="button"
                 onClick={() => stop()}
-                className="rounded-lg border border-border px-5 py-2 text-sm font-medium transition-colors hover:bg-muted"
+                className="flex items-center gap-2 rounded-lg border border-border px-5 py-2 text-sm font-medium transition-colors hover:bg-muted"
               >
+                <Square className="size-3.5" />
                 Stop
               </button>
             ) : (
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
               >
                 Send
+                <Send className="size-3.5" />
               </button>
             )}
           </form>

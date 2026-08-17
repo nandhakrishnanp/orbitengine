@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { RotateCcw, X } from "lucide-react";
 
 export default function SandboxStatus({
   conversationId,
@@ -74,8 +75,9 @@ export default function SandboxStatus({
             setBusy(false);
             if (res.ok) router.refresh();
           }}
-          className="rounded-full border border-zinc-200 px-3 py-1 font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          className="flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
         >
+          <RotateCcw className="size-3.5" />
           Reopen
         </button>
       ) : (
@@ -89,8 +91,9 @@ export default function SandboxStatus({
             if (res.ok) router.refresh();
           }}
           disabled={busy}
-          className="rounded-full border border-zinc-200 px-3 py-1 font-medium transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          className="flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 font-medium transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
         >
+          <X className="size-3.5" />
           Close
         </button>
       )}
