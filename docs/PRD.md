@@ -132,6 +132,27 @@ The MVP delivers the core loop: a user attaches a repository, chats with the eng
 
 ---
 
+## Epic 8: Sandbox Monitor (Issue #19)
+
+### Status: COMPLETE
+
+| Requirement | Status | Details |
+|-------------|--------|---------|
+| Monitor button per conversation | Done | Chat header, visible when sandbox is ready |
+| Dedicated monitor route | Done | `/conversations/:id/monitor` — two-pane layout |
+| File tree | Done | ai-elements `FileTree`; bounded walk (depth 5, 2000 entries, skips `node_modules`/`.git`/`dist`/`.next`) |
+| File viewer | Done | ai-elements `Artifact` + `CodeBlock` (shiki highlighting, line numbers); 1 MB cap, binary detection, path containment check |
+| Copy / download actions | Done | Artifact header actions |
+| Command runner | Done | ai-elements `Terminal`; `sandbox.runCommand({ detached: true })` + `command.logs()` streamed over SSE; 5 min timeout; exit code surfaced |
+| Ownership + sandbox guards | Done | All monitor routes verify session ownership; 400/404 when sandbox is closed |
+| Closed/provisioning states | Done | Monitor page shows state + Reopen action |
+
+**Key files**: `app/conversations/[id]/monitor/`, `app/api/conversations/[id]/monitor/`, `lib/sandbox.ts` (`getConversationSandbox`, `walkSandboxTree`, `readSandboxFile`)
+
+**Future**: code-server (VS Code in browser) inside the sandbox via SDK port exposure — tracked as a follow-up in issue #19.
+
+---
+
 ## Database Schema
 
 ### `conversations` table
@@ -204,3 +225,6 @@ GitHub issues follow the conventions in `docs/agents/issue-tracker.md` with labe
 | #9 | Open a pull request from chat | Closed |
 | #10 | Create a GitHub issue from chat | Closed |
 | #11 | Bootstrap a new repository | Closed |
+| #17 | UI polish: landing + sign-in pages, icons + typography | Open |
+| #18 | Persist engine responses to Postgres (full fidelity) | Open |
+| #19 | Sandbox monitor: file browser + command runner | Closed |

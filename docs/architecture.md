@@ -137,6 +137,9 @@ users 1──N sessions
 | DELETE | `/api/conversations/:id` | Close conversation, destroy sandbox | Required (owner) |
 | POST | `/api/conversations/:id/messages` | Send a user message | Required (owner) |
 | POST | `/api/conversations/:id/sandbox` | Provision or reopen sandbox | Required (owner) |
+| GET | `/api/conversations/:id/monitor/tree` | Sandbox file tree (bounded walk, skips `node_modules`/`.git`) | Required (owner) |
+| GET | `/api/conversations/:id/monitor/file?path=…` | Read a sandbox file (1 MB cap, binary detection, path containment) | Required (owner) |
+| POST | `/api/conversations/:id/monitor/command` | Run a command, SSE-stream output + exit code (5 min timeout) | Required (owner) |
 
 ## Sandbox Lifecycle
 
@@ -190,9 +193,11 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 | Conversations layout | `app/conversations/layout.tsx` | Server | Auth-gated with sidebar |
 | Conversations list | `app/conversations/page.tsx` | Server | Empty state or "New conversation" |
 | Sidebar | `app/conversations/sidebar.tsx` | Server | Conversation list, user info, sign-out |
-| Conversation page | `app/conversations/[id]/page.tsx` | Server | Chat view: header, messages, composer |
+| Conversation page | `app/conversations/[id]/page.tsx` | Server | Chat view: header, messages, composer, Monitor button |
 | Sandbox status | `app/conversations/[id]/sandbox-status.tsx` | Client | Auto-provision, status badge, close/reopen |
 | Streaming chat | `app/conversations/[id]/streaming-chat.tsx` | Client | Chat messages, @-mention repo picker, engine tool display |
+| Monitor page | `app/conversations/[id]/monitor/page.tsx` | Server | Sandbox monitor: auth-gated, closed/provisioning states |
+| Monitor panel | `app/conversations/[id]/monitor/monitor-panel.tsx` | Client | FileTree + Artifact file viewer + Terminal command runner |
 
 ## What's Built vs. What's Next
 
@@ -208,6 +213,7 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 9. UI shell (landing page, conversations layout, sidebar, chat view, @-mention autocomplete)
 10. Database schema (5 tables, indexes)
 11. Architecture documentation (16 ADRs, domain glossary)
+12. Sandbox monitor (file tree, file viewer, command runner — issue #19)
 
 ### Not Yet Built
 - (none — MVP is complete)

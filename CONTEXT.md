@@ -36,3 +36,8 @@ _Avoid_: repo, workspace
 The single repository a conversation works on. Exactly one per conversation;
 the sandbox is wired to it as its git working tree.
 _Avoid_: repo, workspace, project
+
+**Monitor**:
+The in-app view of a conversation's sandbox — file tree, file viewer, and
+command runner. How a user inspects what the engine is working on.
+_Avoid_: IDE, explorer

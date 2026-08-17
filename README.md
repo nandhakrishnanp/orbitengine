@@ -22,6 +22,9 @@ machine; your local repo is never touched.
 - **@-mention autocomplete** — pick repos from your GitHub installations
 - **Streaming responses** with collapsible reasoning and tool call cards
 - **Sandbox lifecycle** — each conversation gets its own ephemeral Firecracker microVM
+- **Sandbox monitor** — per-conversation view of the sandbox: file tree, file
+  viewer with syntax highlighting, and a command runner with live streaming
+  output (`/conversations/:id/monitor`)
 
 ## Tech Stack
 
@@ -83,8 +86,8 @@ Open http://localhost:3001, sign in with GitHub, and start a conversation.
 
 ```
 app/                    Next.js App Router (pages + /api endpoints)
-  api/                  REST endpoints (auth, conversations, repos)
-  conversations/        conversation list + chat UI
+  api/                  REST endpoints (auth, conversations, repos, monitor)
+  conversations/        conversation list + chat UI + sandbox monitor
 auth.ts                 Auth.js config (GitHub provider, Postgres adapter)
 db/schema.sql           Idempotent Postgres schema
 lib/
