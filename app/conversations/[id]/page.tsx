@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import MessageComposer from "./message-composer";
 import SandboxStatus from "./sandbox-status";
+import StreamingChat from "./streaming-chat";
 
 type Message = {
   role: string;
@@ -30,6 +30,11 @@ export default async function ConversationPage({
     messages: Message[];
   };
 
+  const chatMessages = messages.map((m) => ({
+    role: m.role as "user" | "assistant",
+    content: m.content,
+  }));
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex items-center justify-between gap-4 border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
@@ -56,39 +61,10 @@ export default async function ConversationPage({
         )}
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 py-6">
-        {messages.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-            <p className="text-lg font-medium">Work with the engine</p>
-            <p className="max-w-sm text-sm text-zinc-500">
-              Type @ to attach a GitHub repository, then describe the fix or
-              change you want made.
-            </p>
-          </div>
-        ) : (
-          messages.map((message, index) => (
-            <div
-              key={index}
-              className={
-                message.role === "user"
-                  ? "self-end max-w-[70%] rounded-2xl bg-zinc-900 px-4 py-2 text-white dark:bg-zinc-100 dark:text-black"
-                  : "self-start max-w-[70%] rounded-2xl border border-zinc-200 px-4 py-2 dark:border-zinc-800"
-              }
-            >
-              {message.content}
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="border-t border-zinc-200 px-6 py-4 dark:border-zinc-800">
-        <div className="mx-auto max-w-3xl">
-          <MessageComposer
-            conversationId={conversation.id}
-            initialAttachedRepository={conversation.attachedRepository}
-          />
-        </div>
-      </div>
+      <StreamingChat
+        conversationId={conversation.id}
+        initialMessages={chatMessages}
+      />
     </div>
   );
 }
