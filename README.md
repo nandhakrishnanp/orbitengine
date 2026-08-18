@@ -8,6 +8,10 @@ changes, runs the tests, and hands back a pull request.
 **You only ever talk in chat and review the result.** Nothing runs on your
 machine; your local repo is never touched.
 
+| Chat with the engine | Sandbox monitor |
+| --- | --- |
+| ![Chat with the engine](media/chat.png) | ![Sandbox monitor](media/filemonitor.png) |
+
 ## What's Working
 
 - **GitHub sign-in** (Auth.js) with sessions persisted in Postgres
@@ -82,26 +86,15 @@ npm run dev
 
 Open http://localhost:3001, sign in with GitHub, and start a conversation.
 
-## Project Layout
+## Documentation
 
-```
-app/                    Next.js App Router (pages + /api endpoints)
-  api/                  REST endpoints (auth, conversations, repos, monitor)
-  conversations/        conversation list + chat UI + sandbox monitor
-auth.ts                 Auth.js config (GitHub provider, Postgres adapter)
-db/schema.sql           Idempotent Postgres schema
-lib/
-  ai.ts                 OpenZen AI client
-  engine.ts             System prompt + engine tools (run, read, write, PR, issue, repo)
-  github.ts             GitHub App JWT, installation tokens, repo listing
-  sandbox.ts            Vercel Sandbox lifecycle
-docs/
-  adr/                  Architecture Decision Records (0001–0016)
-  architecture.md       System architecture overview
-  PRD.md                Product requirements document
-CONTEXT.md              Domain glossary
-```
+The design lives in [`docs/`](docs/):
+
+- [`docs/architecture.md`](docs/architecture.md) — system architecture overview
+- [`docs/PRD.md`](docs/PRD.md) — product requirements document
+- [`docs/adr/`](docs/adr/) — architecture decision records (0001–0016)
+- [`CONTEXT.md`](CONTEXT.md) — domain glossary
 
 ## License
 
-Not yet licensed — contact the maintainers before reuse.
+[MIT](LICENSE)
