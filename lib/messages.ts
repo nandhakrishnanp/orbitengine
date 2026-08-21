@@ -94,6 +94,46 @@ export async function saveAssistantMessage(
   return { ...row, parts: parseParts(row.parts) };
 }
 
+export async function upsertAssistantMessage(
+  conversationId: string,
+  messageId: string,
+  userId: string,
+  message: { content: string; parts: UIMessage["parts"]; phase?: string | null }
+): Promise<PersistedMessage | null> {
+  const hasParts = await partsColumnExists();
+  const sql = hasParts
+    ? `INSERT INTO messages (id, "conversationId", role, content, parts, phase)
+       SELECT $1, $2, 'assistant', $3, $4::jsonb, $5
+       FROM conversations
+       WHERE id = $2 AND "userId" = $6
+       ON CONFLICT (id) DO UPDATE
+       SET content = EXCLUDED.content, parts = EXCLUDED.parts, phase = EXCLUDED.phase
+       RETURNING id, role, content, parts, phase, "createdAt"`
+    : `INSERT INTO messages (id, "conversationId", role, content, phase)
+       SELECT $1, $2, 'assistant', $3, $4
+       FROM conversations
+       WHERE id = $2 AND "userId" = $5
+       ON CONFLICT (id) DO UPDATE
+       SET content = EXCLUDED.content, phase = EXCLUDED.phase
+       RETURNING id, role, content, phase, "createdAt"`;
+
+  const params = hasParts
+    ? [
+        messageId,
+        conversationId,
+        message.content,
+        JSON.stringify(message.parts),
+        message.phase ?? null,
+        userId,
+      ]
+    : [messageId, conversationId, message.content, message.phase ?? null, userId];
+
+  const result = await pool.query(sql, params);
+  if (result.rowCount === 0) return null;
+  const row = result.rows[0];
+  return { ...row, parts: parseParts(row.parts) };
+}
+
 export async function listConversationMessages(
   conversationId: string
 ): Promise<PersistedMessage[]> {
