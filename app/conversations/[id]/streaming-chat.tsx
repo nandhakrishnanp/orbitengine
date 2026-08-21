@@ -8,7 +8,6 @@ import {
   GitBranch,
   ListTree,
   Lock,
-  Send,
   Sparkles,
   Square,
   SquareTerminal,
@@ -41,6 +40,17 @@ import {
   ToolOutput,
 } from "@/components/ai-elements/tool";
 import { Terminal } from "@/components/ai-elements/terminal";
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+} from "@/components/ai-elements/prompt-input";
+import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
+import { Button } from "@/components/ui/button";
+import ModelPicker from "./model-picker";
 
 type Repo = {
   fullName: string;
@@ -297,9 +307,13 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
 export default function StreamingChat({
   conversationId,
   initialMessages,
+  defaultModel,
+  configuredProviders,
 }: {
   conversationId: string;
   initialMessages: UIMessage[];
+  defaultModel?: { provider: string; id: string } | null;
+  configuredProviders?: string[];
 }) {
   const { messages, setMessages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
@@ -309,96 +323,13 @@ export default function StreamingChat({
     id: conversationId,
   });
 
-  const [input, setInput] = useState("");
-  const [repos, setRepos] = useState<Repo[]>([]);
-  const [mentionOpen, setMentionOpen] = useState(false);
-  const [mentionQuery, setMentionQuery] = useState("");
-  const [highlighted, setHighlighted] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
   const isStreaming = status === "streaming" || status === "submitted";
-
-  useEffect(() => {
-    fetch("/api/repos")
-      .then((res) => (res.ok ? res.json() : { repos: [] }))
-      .then((data) => setRepos(data.repos ?? []))
-      .catch(() => setRepos([]));
-  }, []);
-
-  const filteredRepos = useMemo(() => {
-    if (!mentionQuery) return repos;
-    const q = mentionQuery.toLowerCase();
-    return repos.filter(
-      (repo) =>
-        repo.fullName.toLowerCase().includes(q) ||
-        repo.name.toLowerCase().includes(q)
-    );
-  }, [repos, mentionQuery]);
-
-  function parseMention(next: string) {
-    const tokens = next.split(" ");
-    const last = tokens[tokens.length - 1];
-    if (last.startsWith("@") && last.length > 1) {
-      setMentionQuery(last.slice(1));
-      setMentionOpen(true);
-      setHighlighted(0);
-    } else if (last === "@") {
-      setMentionQuery("");
-      setMentionOpen(true);
-      setHighlighted(0);
-    } else {
-      setMentionOpen(false);
-    }
-  }
-
-  function selectRepo(repo: Repo) {
-    const tokens = input.split(" ");
-    tokens[tokens.length - 1] = `@${repo.fullName} `;
-    setInput(tokens.join(" "));
-    setMentionOpen(false);
-    inputRef.current?.focus();
-  }
 
   useEffect(() => {
     if (initialMessages.length > 0 && messages.length === 0) {
       setMessages(initialMessages);
     }
   }, []);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim() || isStreaming) return;
-    const text = input.trim();
-    setInput("");
-    try {
-      await fetch(`/api/conversations/${conversationId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: text }),
-      });
-    } catch {
-      // Non-fatal: the engine builds context from the DB; still send anyway.
-    }
-    sendMessage({ text });
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!mentionOpen || filteredRepos.length === 0) return;
-
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlighted((h) => (h + 1) % filteredRepos.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlighted(
-        (h) => (h - 1 + filteredRepos.length) % filteredRepos.length
-      );
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      selectRepo(filteredRepos[highlighted]);
-    } else if (e.key === "Escape") {
-      setMentionOpen(false);
-    }
-  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -463,79 +394,156 @@ export default function StreamingChat({
 
       <div className="border-t border-border px-6 py-4">
         <div className="mx-auto max-w-3xl">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <div className="relative flex-1">
-              {mentionOpen && filteredRepos.length > 0 && (
-                <div className="absolute bottom-full left-0 z-10 mb-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                  {filteredRepos.slice(0, 8).map((repo, index) => (
-                    <button
-                      key={repo.fullName}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        selectRepo(repo);
-                      }}
-                      onMouseEnter={() => setHighlighted(index)}
-                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm transition-colors ${
-                        index === highlighted
-                          ? "bg-zinc-100 dark:bg-zinc-800"
-                          : ""
-                      }`}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <GitBranch className="size-4 shrink-0 text-zinc-400 dark:text-zinc-500" />
-                        <span className="truncate font-medium">
-                          {repo.fullName}
-                        </span>
-                      </span>
-                      {repo.private && (
-                        <span className="ml-2 flex shrink-0 items-center gap-1 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
-                          <Lock className="size-3" />
-                          private
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <input
-                ref={inputRef}
-                name="content"
-                value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  parseMention(e.target.value);
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder={isStreaming ? "Engine is working…" : "Type @ to pick a repo, then describe the change…"}
-                disabled={isStreaming}
-                className="w-full rounded-lg border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-                autoComplete="off"
-              />
-            </div>
-            {isStreaming ? (
-              <button
-                type="button"
-                onClick={() => stop()}
-                className="flex items-center gap-2 rounded-lg border border-border px-5 py-2 text-sm font-medium transition-colors hover:bg-muted"
-              >
-                <Square className="size-3.5" />
-                Stop
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!input.trim()}
-                className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-              >
-                Send
-                <Send className="size-3.5" />
-              </button>
-            )}
-          </form>
+          <Composer
+            conversationId={conversationId}
+            sendMessage={sendMessage}
+            isStreaming={isStreaming}
+            stop={stop}
+            defaultModel={defaultModel}
+            configuredProviders={configuredProviders ?? []}
+          />
         </div>
       </div>
     </div>
+  );
+}
+
+function Composer({
+  conversationId,
+  sendMessage,
+  isStreaming,
+  stop,
+  defaultModel,
+  configuredProviders,
+}: {
+  conversationId: string;
+  sendMessage: ReturnType<typeof useChat>["sendMessage"];
+  isStreaming: boolean;
+  stop: () => void;
+  defaultModel?: { provider: string; id: string } | null;
+  configuredProviders: string[];
+}) {
+  const [input, setInput] = useState("");
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
+  const [highlighted, setHighlighted] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    fetch("/api/repos")
+      .then((res) => (res.ok ? res.json() : { repos: [] }))
+      .then((data) => setRepos(data.repos ?? []))
+      .catch(() => setRepos([]));
+  }, []);
+
+  const filteredRepos = useMemo(() => {
+    if (!mentionQuery) return repos;
+    const q = mentionQuery.toLowerCase();
+    return repos.filter(
+      (repo) =>
+        repo.fullName.toLowerCase().includes(q) ||
+        repo.name.toLowerCase().includes(q)
+    );
+  }, [repos, mentionQuery]);
+
+  function parseMention(next: string) {
+    const tokens = next.split(" ");
+    const last = tokens[tokens.length - 1];
+    if (last.startsWith("@") && last.length > 1) {
+      setMentionQuery(last.slice(1));
+      setMentionOpen(true);
+      setHighlighted(0);
+    } else if (last === "@") {
+      setMentionQuery("");
+      setMentionOpen(true);
+      setHighlighted(0);
+    } else {
+      setMentionOpen(false);
+    }
+  }
+
+  function selectRepo(repo: Repo) {
+    const tokens = input.split(" ");
+    tokens[tokens.length - 1] = `@${repo.fullName} `;
+    const next = tokens.join(" ");
+    setInput(next);
+    if (textareaRef.current) textareaRef.current.value = next;
+    setMentionOpen(false);
+    textareaRef.current?.focus();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!mentionOpen || filteredRepos.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlighted((h) => (h + 1) % filteredRepos.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlighted(
+        (h) => (h - 1 + filteredRepos.length) % filteredRepos.length
+      );
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      selectRepo(filteredRepos[highlighted]);
+    } else if (e.key === "Escape") {
+      setMentionOpen(false);
+    }
+  }
+
+  async function handleSubmit(message: { text?: string }) {
+    const text = (message.text ?? "").trim();
+    if (!text || isStreaming) return;
+    try {
+      await fetch(`/api/conversations/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+    } catch {
+      // Non-fatal: the engine builds context from the DB; still send anyway.
+    }
+    setInput("");
+    setMentionOpen(false);
+    sendMessage({ text });
+  }
+
+  return (
+<PromptInput onSubmit={handleSubmit}>
+      <PromptInputProvider>
+        <PromptInputBody>
+          <PromptInputTextarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => {
+              setInput(e.target.value);
+              parseMention(e.target.value);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isStreaming
+                ? "Engine is working…"
+                : "Type @ to pick a repo, then describe the change…"
+            }
+            disabled={isStreaming}
+            rows={2}
+            className="border-0 bg-transparent px-4 py-3 text-sm focus-visible:ring-0 disabled:opacity-50"
+          />
+        </PromptInputBody>
+        <PromptInputFooter className="mt-2 items-center justify-between">
+          <PromptInputTools>
+            <ModelPicker
+              conversationId={conversationId}
+              currentProvider={null}
+              currentModel={null}
+              defaultModel={defaultModel}
+              configuredProviders={configuredProviders}
+            />
+          </PromptInputTools>
+          <PromptInputSubmit />
+        </PromptInputFooter>
+      </PromptInputProvider>
+    </PromptInput>
   );
 }
