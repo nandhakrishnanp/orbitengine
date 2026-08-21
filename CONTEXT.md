@@ -41,3 +41,40 @@ _Avoid_: repo, workspace, project
 The in-app view of a conversation's sandbox — file tree, file viewer, and
 command runner. How a user inspects what the engine is working on.
 _Avoid_: IDE, explorer
+
+**Model selection**:
+The per-conversation choice of provider (OpenAI, Claude, DeepSeek, Gemini,
+opencode.ai) and model, with a global default. Independent of the fixed engine
+system prompt — the engine's behaviour does not change, only which model powers it.
+_Avoid_: operator, harness
+
+**Mode**:
+The working posture of a conversation — **Plan** (read-only: the engine reads
+repo files and analyses but never writes or pushes) or **Build** (full tool
+set, including writes, PRs, and browsing). Per-conversation and switchable.
+_Avoid_: phase
+
+**Skill**:
+A named Markdown instruction bundle the user adds to a conversation's context
+by typing `/skillname` in chat. Managed in Settings — added, edited, deleted,
+or created from a conversation the engine just worked on. A skill may bundle
+extra tools (e.g. browser). Skills apply in Build mode.
+_Avoid_: command, plugin
+
+**Factory**:
+A per-repository configuration that watches for new issues and autonomously
+runs the engine to reproduce, fix, and open a PR for each one. Watches the repo
+by polling for open issues.
+_Avoid_: bot, workflow
+
+**Factory run**:
+One issue handled by a factory — a sandboxed engine loop that reproduces the
+issue, makes a fix on a separate branch, and opens a PR. One sandbox per run
+(ADR-0001). Triggered by polling, not by a webhook.
+_Avoid_: job, task
+
+**Trace**:
+The recorded engine activity for a conversation or factory run — per-step spans
+(tool, duration, phase, input, output) plus per-run context (model, provider,
+skills, step count, total time). Viewed in the observability surface.
+_Avoid_: log, timeline

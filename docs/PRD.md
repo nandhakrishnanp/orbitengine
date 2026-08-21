@@ -381,5 +381,7 @@ Postgres on port 5433).
 | #10 | Create a GitHub issue from chat | Closed |
 | #11 | Bootstrap a new repository | Closed |
 | #17 | UI polish: landing + sign-in pages, icons + typography | Open |
-| #18 | Persist engine responses to Postgres (full fidelity) | Open |
+| #18 | Persist engine responses to Postgres (full fidelity) | Closed |
 | #19 | Sandbox monitor: file browser + command runner | Closed |
+| #20 | Add GitHub App install prompt after sign-in | Open |
+| #21 | T01 — Durable server-side engine-step persistence | Closed |
