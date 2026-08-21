@@ -385,3 +385,4 @@ Postgres on port 5433).
 | #19 | Sandbox monitor: file browser + command runner | Closed |
 | #20 | Add GitHub App install prompt after sign-in | Open |
 | #21 | T01 — Durable server-side engine-step persistence | Closed |
+| #22 | T02 — Settings data model & provider keys (encrypted at rest) | In progress |

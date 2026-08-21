@@ -55,6 +55,23 @@ CREATE TABLE IF NOT EXISTS messages (
   "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+  "userId" TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  data JSONB NOT NULL DEFAULT '{}',
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS provider_keys (
+  "userId" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  "encryptedKey" TEXT NOT NULL,
+  "keyHint" TEXT,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY ("userId", provider)
+);
+
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS parts JSONB;
 
 CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations ("userId");
