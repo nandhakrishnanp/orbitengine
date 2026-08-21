@@ -307,25 +307,6 @@ export default function StreamingChat({
       body: { conversationId },
     }),
     id: conversationId,
-    onFinish: async ({ message }) => {
-      const text = message.parts
-        .filter((p) => p.type === "text")
-        .map((p) => p.text)
-        .join("\n");
-      try {
-        await fetch(`/api/conversations/${conversationId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            role: "assistant",
-            content: text,
-            parts: message.parts,
-          }),
-        });
-      } catch {
-        // Persistence must never break the chat — ignore non-fatal failures.
-      }
-    },
   });
 
   const [input, setInput] = useState("");
