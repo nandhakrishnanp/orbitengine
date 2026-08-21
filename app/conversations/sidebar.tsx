@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LogOut, MessageSquare, Orbit, Plus, Trash2 } from "lucide-react";
+import { LogOut, MessageSquare, Orbit, Plus, Settings, Trash2 } from "lucide-react";
 
 type User = {
   name?: string | null;
@@ -154,13 +154,22 @@ export default function Sidebar({
             <p className="truncate text-xs text-zinc-500">{user.email}</p>
           </div>
         </div>
-        <button
-          onClick={() => signOut({ callbackUrl: "/" })}
-          title="Sign out"
-          className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        >
-          <LogOut className="size-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <Link
+            href="/settings"
+            title="Settings"
+            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <Settings className="size-4" />
+          </Link>
+          <button
+            onClick={() => signOut({ callbackUrl: "/" })}
+            title="Sign out"
+            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <LogOut className="size-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );

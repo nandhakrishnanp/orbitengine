@@ -31,11 +31,23 @@ export default async function ConversationPage({
       id: string;
       status: string;
       sandboxId: string | null;
+      provider: string | null;
+      model: string | null;
     };
     messages: Message[];
   } | null;
   if (!data?.conversation) notFound();
   const { conversation, messages } = data;
+
+  const settingsRes = await apiFetch("/api/settings");
+  const settingsData = (await settingsRes.json().catch(() => null)) as {
+    settings?: { model?: { provider: string; id: string } | null };
+    keys?: { provider: string }[];
+  } | null;
+  const configuredProviders = Array.from(
+    new Set((settingsData?.keys ?? []).map((k) => k.provider))
+  );
+  const defaultModel = settingsData?.settings?.model ?? null;
 
   const chatMessages: UIMessage[] = messages.map((m) => ({
     id: m.id,
@@ -72,6 +84,8 @@ export default async function ConversationPage({
       <StreamingChat
         conversationId={conversation.id}
         initialMessages={chatMessages}
+        defaultModel={defaultModel}
+        configuredProviders={configuredProviders}
       />
     </div>
   );

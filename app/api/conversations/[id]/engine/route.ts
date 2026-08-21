@@ -11,7 +11,7 @@ import {
 import { Sandbox } from "@vercel/sandbox";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db";
-import { openzen } from "@/lib/ai";
+import { createProviderModel } from "@/lib/ai";
 import { engineTools, SYSTEM_PROMPT } from "@/lib/engine";
 import {
   listConversationMessages,
@@ -19,9 +19,42 @@ import {
   upsertAssistantMessage,
   extractText,
 } from "@/lib/messages";
+import { getSettings, getProviderKey, type Provider } from "@/lib/settings";
 import { getInstallationTokenForUser } from "@/lib/github";
 
-const MAX_STEPS = 50;
+const DEFAULT_PROVIDER: Provider = "opencode-go";
+const DEFAULT_MODEL = "hy3-free";
+
+async function resolveModel(
+  userId: string,
+  conversation: { provider: string | null; model: string | null }
+) {
+  const settings = await getSettings(userId);
+  const provider =
+    (conversation.provider as Provider | null) ??
+    settings.model?.provider ??
+    DEFAULT_PROVIDER;
+  const modelId =
+    conversation.model ?? settings.model?.id ?? DEFAULT_MODEL;
+
+  const storedKey = await getProviderKey(userId, provider);
+  if (storedKey) {
+    return {
+      model: createProviderModel(provider, modelId, storedKey),
+      loop: settings.loop,
+      source: "user-key" as const,
+    };
+  }
+  // Fall back to the platform key (opencode-go only).
+  if (process.env.OPENZEN_API_KEY && provider === DEFAULT_PROVIDER) {
+    return {
+      model: createProviderModel(provider, modelId, process.env.OPENZEN_API_KEY),
+      loop: settings.loop,
+      source: "platform-key" as const,
+    };
+  }
+  return null;
+}
 
 function stepPhase(parts: UIMessage["parts"]): string {
   const toolParts = parts.filter(
@@ -51,7 +84,7 @@ export async function POST(
   const userId = session.user.id;
 
   const ownership = await pool.query(
-    `SELECT id, "sandboxId", "attachedRepository"
+    `SELECT id, "sandboxId", "attachedRepository", provider, model
      FROM conversations WHERE id = $1 AND "userId" = $2`,
     [id, userId]
   );
@@ -86,13 +119,29 @@ export async function POST(
 
   const assistantMessageId = randomUUID();
 
+  const resolved = await resolveModel(userId, conversation);
+  if (!resolved) {
+    return new Response(
+      JSON.stringify({
+        error: `No API key configured for provider "${conversation.provider ?? "opencode-go"}". Add one in Settings.`,
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  console.log("[engine] model resolved:", {
+    provider: conversation.provider ?? "(default)",
+    model: conversation.model ?? "(default)",
+    source: resolved.source,
+    loop: resolved.loop,
+  });
+
   const result = streamText({
-    model: openzen("hy3-free"),
+    model: resolved.model,
     system: SYSTEM_PROMPT,
     messages: modelMessages,
     tools: engineTools(sandbox, githubToken),
-    maxRetries: 5,
-    stopWhen: ({ steps }) => steps.length >= MAX_STEPS,
+    maxRetries: resolved.loop.maxRetries,
+    stopWhen: ({ steps }) => steps.length >= resolved.loop.maxSteps,
     onStepFinish: ({ text, toolCalls, finishReason }) => {
       console.log("[engine] step finished:", {
         text: text?.slice(0, 100),
