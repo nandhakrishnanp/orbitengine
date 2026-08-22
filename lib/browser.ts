@@ -77,6 +77,29 @@ export interface BrowserCommandOutput {
   output: string;
 }
 
+// Cheap probe: is there a live browser session in this sandbox?
+export async function browserSessionActive(sandbox: Sandbox): Promise<boolean> {
+  await ensureInstalled(sandbox);
+  try {
+    const argv = buildAgentBrowserArgv(["get", "url"], { json: true });
+    const result = await sandbox.runCommand("agent-browser", argv, {
+      timeoutMs: 10_000,
+    });
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+// Start a session on demand (the "Start session" button) so the preview has
+// something to show before the engine browses.
+export async function browserStartSession(
+  sandbox: Sandbox
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await browserRun(sandbox, ["open", "about:blank"]);
+  return { ok: result.ok, error: result.ok ? undefined : result.output };
+}
+
 export async function browserRun(
   sandbox: Sandbox,
   args: readonly string[],
