@@ -5,7 +5,6 @@ import {
   DEFAULT_AGENT_BROWSER_INSTALL_SPEC,
   throwIfCommandFailed,
 } from "@agent-browser/sandbox";
-import { CHROMIUM_SYSTEM_DEPS } from "@agent-browser/sandbox/vercel";
 import type { Sandbox } from "@vercel/sandbox";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -60,44 +59,38 @@ async function runStep(
 }
 
 async function installInto(sandbox: Sandbox): Promise<void> {
-  const deps = CHROMIUM_SYSTEM_DEPS.join(" ");
-
-  const steps: { label: string; command: string; args: string[] }[] = [
-    {
-      label: "installing Chromium system libraries",
-      command: "sh",
-      args: [
-        "-c",
-        `sudo dnf install -y --skip-broken -- ${deps} && sudo ldconfig`,
-      ],
-    },
-    {
-      label: "installing agent-browser CLI",
-      command: "npm",
-      args: ["install", "-g", DEFAULT_AGENT_BROWSER_INSTALL_SPEC],
-    },
-    {
-      label: "downloading headless Chromium",
-      command: "agent-browser",
-      args: ["install"],
-    },
-  ];
-
-  for (const step of steps) {
-    const result = await runStep(
-      sandbox,
-      step.command,
-      step.args,
-      step.label,
-      INSTALL_STEP_TIMEOUT_MS
+  // 1. The CLI itself (Rust binary via npm).
+  const cli = await runStep(
+    sandbox,
+    "npm",
+    ["install", "-g", DEFAULT_AGENT_BROWSER_INSTALL_SPEC],
+    "installing agent-browser CLI",
+    INSTALL_STEP_TIMEOUT_MS
+  );
+  if (cli.exitCode !== 0) {
+    throw new Error(
+      `agent-browser CLI install failed (exit ${cli.exitCode}): ${
+        cli.stderr.trim().slice(0, 500) || "no stderr"
+      }`
     );
-    if (result.exitCode !== 0) {
-      throw new Error(
-        `${step.label} failed (exit ${result.exitCode}): ${
-          result.stderr.trim().slice(0, 500) || "no stderr"
-        }`
-      );
-    }
+  }
+
+  // 2. Chrome + its system libraries. --with-deps lets the CLI detect the
+  // distro's package manager itself (apt-get/dnf) and install the right
+  // libraries; it exits nonzero if anything is missing.
+  const chrome = await runStep(
+    sandbox,
+    "agent-browser",
+    ["install", "--with-deps"],
+    "installing Chromium with system deps",
+    INSTALL_STEP_TIMEOUT_MS
+  );
+  if (chrome.exitCode !== 0) {
+    throw new Error(
+      `Chromium install failed (exit ${chrome.exitCode}): ${
+        chrome.stderr.trim().slice(0, 500) || chrome.stdout.trim().slice(0, 500)
+      }`
+    );
   }
 }
 
