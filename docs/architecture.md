@@ -264,6 +264,8 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 | Browser page | `app/conversations/[id]/browser/page.tsx` | Server | Live browser view: auth-gated shell |
 | Browser view | `app/conversations/[id]/browser/browser-view.tsx` | Client | Idle → Starting → Live states; screenshot polling, pause/resume, URL strip |
 | Settings page | `app/settings/page.tsx` + `settings-client.tsx` | Server/Client | Provider API keys (encrypted at rest), default model & loop params |
+| Skills section | `app/settings/skills-section.tsx` | Client | Skill library CRUD: add, edit, delete Markdown skills invoked via `/skillname` |
+| Skill picker | in `streaming-chat.tsx` composer | Client | `/`-triggered dropdown with search; selected skills shown as chips and prepended to the sent message; Build mode applies them to the engine context |
 
 ## What's Built vs. What's Next
 

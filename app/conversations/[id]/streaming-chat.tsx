@@ -653,6 +653,7 @@ function ComposerBody({
 }) {
   const { textInput } = usePromptInputController();
   const input = textInput.value;
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [repos, setRepos] = useState<Repo[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -726,12 +727,20 @@ function ComposerBody({
   }
 
   function selectSkill(skill: Skill) {
+    setSelectedSkills((prev) =>
+      prev.includes(skill.name) ? prev : [...prev, skill.name]
+    );
+    // Drop the typed "/partial" token from the input; the skill rides
+    // along as a chip and is prepended to the message on submit.
     const tokens = input.split(" ");
-    tokens[tokens.length - 1] = `/${skill.name} `;
-    const next = tokens.join(" ");
-    textInput.setInput(next);
+    tokens.splice(-1, 1);
+    textInput.setInput(tokens.length > 0 ? tokens.join(" ") + " " : "");
     setSkillOpen(false);
     textareaRef.current?.focus();
+  }
+
+  function removeSkill(name: string) {
+    setSelectedSkills((prev) => prev.filter((s) => s !== name));
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -775,7 +784,9 @@ function ComposerBody({
   }
 
   async function handleSubmit(message: { text?: string }) {
-    const text = (message.text ?? "").trim();
+    const typed = (message.text ?? "").trim();
+    const prefix = selectedSkills.map((name) => `/${name}`).join(" ");
+    const text = prefix ? `${prefix} ${typed}`.trim() : typed;
     if (!text || isStreaming) return;
     try {
       await fetch(`/api/conversations/${conversationId}/messages`, {
@@ -786,7 +797,7 @@ function ComposerBody({
     } catch {
       // Non-fatal: the engine builds context from the DB; still send anyway.
     }
-    textInput.setInput("");
+    setSelectedSkills([]);
     setMentionOpen(false);
     setSkillOpen(false);
     sendMessage({ text });
@@ -838,6 +849,26 @@ function ComposerBody({
           </PromptInputBody>
           <PromptInputFooter className="mt-2 items-center justify-between">
           <PromptInputTools>
+            {selectedSkills.length > 0 && (
+              <span className="flex items-center gap-1">
+                {selectedSkills.map((name) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                  >
+                    /{name}
+                    <button
+                      type="button"
+                      aria-label={`Remove ${name}`}
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                      onClick={() => removeSkill(name)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </span>
+            )}
             <ModePicker
               conversationId={conversationId}
               initialMode={initialMode}
