@@ -3,13 +3,14 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db";
 import { listConversationMessages } from "@/lib/messages";
-import { PROVIDERS } from "@/lib/settings";
+import { PROVIDERS, MODES } from "@/lib/settings";
 import { destroySandbox } from "@/lib/sandbox";
 
 const patchSchema = z
   .object({
     provider: z.enum(PROVIDERS).nullable().optional(),
     model: z.string().min(1).nullable().optional(),
+    mode: z.enum(MODES).optional(),
   })
   .strict();
 
@@ -25,7 +26,7 @@ export async function GET(
   const { id } = await params;
 
   const conversationResult = await pool.query(
-    `SELECT id, status, "sandboxId", provider, model, "createdAt" FROM conversations WHERE id = $1 AND "userId" = $2`,
+    `SELECT id, status, "sandboxId", provider, model, mode, "createdAt" FROM conversations WHERE id = $1 AND "userId" = $2`,
     [id, session.user.id]
   );
   if (conversationResult.rowCount === 0) {
@@ -70,6 +71,10 @@ export async function PATCH(
     values.push(parsed.data.model);
     sets.push(`model = $${values.length}`);
   }
+  if (parsed.data.mode !== undefined) {
+    values.push(parsed.data.mode);
+    sets.push(`mode = $${values.length}`);
+  }
   if (sets.length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
@@ -77,7 +82,7 @@ export async function PATCH(
   const result = await pool.query(
     `UPDATE conversations SET ${sets.join(", ")}, "updatedAt" = now()
      WHERE id = $1 AND "userId" = $2
-     RETURNING id, status, "sandboxId", provider, model, "createdAt"`,
+     RETURNING id, status, "sandboxId", provider, model, mode, "createdAt"`,
     values
   );
   if (result.rowCount === 0) {
