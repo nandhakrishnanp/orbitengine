@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@agent-browser/sandbox": "^0.34.0",
     "@ai-sdk/openai-compatible": "^3.0.30",
     "@ai-sdk/react": "^4.0.69",
     "@auth/pg-adapter": "^1.11.3",
