@@ -133,6 +133,14 @@ settings
 provider_keys
   userId + provider (composite PK)
   encryptedKey, keyHint
+
+skills
+  id (PK, UUID)
+  userId (FK→users)
+  name (unique per user)
+  content (Markdown)
+  declaredTools (JSONB, default [])
+  createdAt, updatedAt
 ```
 
 ### Entity Relationships
@@ -152,6 +160,11 @@ users 1──N sessions
 | PUT/DELETE | `/api/settings/keys/:provider` | Store/remove encrypted provider API keys | Required |
 | GET | `/api/models/:provider` | List models for a provider (model picker) | Required |
 | GET | `/api/repos` | List GitHub repos accessible to user (for @-mention autocomplete) | Required |
+| GET | `/api/skills` | List user's skills | Required |
+| POST | `/api/skills` | Create a skill (name + Markdown) | Required |
+| GET | `/api/skills/:name` | Fetch a skill by name | Required (owner) |
+| PATCH | `/api/skills/:name` | Update skill content / declared tools | Required (owner) |
+| DELETE | `/api/skills/:name` | Delete a skill | Required (owner) |
 | GET | `/api/conversations` | List user's conversations | Required |
 | POST | `/api/conversations` | Create new conversation | Required |
 | GET | `/api/conversations/:id` | Fetch conversation + messages | Required (owner) |
@@ -271,8 +284,9 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 14. Per-conversation model selection with encrypted provider keys (ADR-0017, T02/T04)
 15. Plan/Build working modes with tool gating (T03)
 16. Live browser capability via agent-browser + standalone browser preview (T05)
+17. User-managed skills: skills table, Settings CRUD, `/skillname` invocation injecting skill Markdown into the engine context in Build mode (T07)
 
 ### Not Yet Built (see docs/v2.md and the issue tracker)
-- Skills: manage, store, invoke (T07), create from conversation (T08), bundling (T09)
+- Create skill from conversation (T08), skill browser-tool bundling (T09)
 - Observability trace store + live traces view (T10)
 - Software factory: config/run engine (T11/T12) and ops dashboard (T13)
