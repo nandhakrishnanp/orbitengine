@@ -16,6 +16,7 @@ import {
 } from "@/components/ai-elements/model-selector";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import SkillsSection from "./skills-section";
 
 const PROVIDERS = ["opencode-go", "openai", "anthropic", "deepseek", "google"];
 
@@ -294,6 +295,8 @@ export default function SettingsClient() {
           })}
         </div>
       </section>
+
+      <SkillsSection />
     </div>
   );
 }

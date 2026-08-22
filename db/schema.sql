@@ -78,5 +78,17 @@ CREATE TABLE IF NOT EXISTS provider_keys (
 
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS parts JSONB;
 
+CREATE TABLE IF NOT EXISTS skills (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  "declaredTools" JSONB NOT NULL DEFAULT '[]',
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE ("userId", name)
+);
+
 CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations ("userId");
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages ("conversationId");
+CREATE INDEX IF NOT EXISTS skills_user_idx ON skills ("userId");

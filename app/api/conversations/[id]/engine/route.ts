@@ -30,6 +30,7 @@ import {
   type Provider,
   type Mode,
 } from "@/lib/settings";
+import { resolveSkillsForMessage, skillsPromptSection } from "@/lib/skills";
 import { getInstallationTokenForUser } from "@/lib/github";
 
 const DEFAULT_PROVIDER: Provider = "opencode-go";
@@ -170,6 +171,24 @@ export async function POST(
     system += `\n\n${PLAN_MODE_PROMPT}`;
   } else {
     system += `\n\n${BROWSING_PROMPT}`;
+    // Skills apply in Build mode only (ADR-0018). Invocations are resolved
+    // from the latest persisted user message.
+    const lastUserMessage = [...history]
+      .reverse()
+      .find((m) => m.role === "user");
+    const latestUserText = lastUserMessage
+      ? lastUserMessage.parts
+        ? extractText(lastUserMessage.parts)
+        : lastUserMessage.content
+      : null;
+    const skills = await resolveSkillsForMessage(userId, latestUserText);
+    if (skills.length > 0) {
+      system += skillsPromptSection(skills);
+      console.log(
+        "[engine] skills invoked:",
+        skills.map((s) => s.name)
+      );
+    }
   }
 
   const result = streamText({
