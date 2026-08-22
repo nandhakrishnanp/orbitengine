@@ -2,12 +2,14 @@ import {
   AgentBrowserCommandError,
   buildAgentBrowserArgv,
   createAgentBrowserCommandResult,
+  DEFAULT_AGENT_BROWSER_INSTALL_SPEC,
   throwIfCommandFailed,
 } from "@agent-browser/sandbox";
-import { installAgentBrowserInVercelSandbox } from "@agent-browser/sandbox/vercel";
+import { CHROMIUM_SYSTEM_DEPS } from "@agent-browser/sandbox/vercel";
 import type { Sandbox } from "@vercel/sandbox";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
+const INSTALL_STEP_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_OUTPUT_CHARS = 20_000;
 
 export class BrowserError extends Error {
@@ -26,6 +28,79 @@ const bootstrapped = new Set<string>();
 let bootstrapPromise: Promise<void> | null = null;
 let bootstrapSandboxName: string | null = null;
 
+interface StepResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+async function runStep(
+  sandbox: Sandbox,
+  command: string,
+  args: readonly string[],
+  label: string,
+  timeoutMs: number
+): Promise<StepResult> {
+  console.log(`[browser] ${label}: running…`);
+  const result = await sandbox.runCommand(command, args as string[], {
+    timeoutMs,
+  });
+  const stdout = await result.stdout();
+  const stderr = await result.stderr();
+  if (result.exitCode !== 0) {
+    console.error(
+      `[browser] ${label}: FAILED (exit ${result.exitCode})\n` +
+        `stdout: ${stdout.slice(0, 2000)}\n` +
+        `stderr: ${stderr.slice(0, 2000)}`
+    );
+  } else {
+    console.log(`[browser] ${label}: ok`);
+  }
+  return { exitCode: result.exitCode, stdout, stderr };
+}
+
+async function installInto(sandbox: Sandbox): Promise<void> {
+  const deps = CHROMIUM_SYSTEM_DEPS.join(" ");
+
+  const steps: { label: string; command: string; args: string[] }[] = [
+    {
+      label: "installing Chromium system libraries",
+      command: "sh",
+      args: [
+        "-c",
+        `sudo dnf install -y --skip-broken -- ${deps} && sudo ldconfig`,
+      ],
+    },
+    {
+      label: "installing agent-browser CLI",
+      command: "npm",
+      args: ["install", "-g", DEFAULT_AGENT_BROWSER_INSTALL_SPEC],
+    },
+    {
+      label: "downloading headless Chromium",
+      command: "agent-browser",
+      args: ["install"],
+    },
+  ];
+
+  for (const step of steps) {
+    const result = await runStep(
+      sandbox,
+      step.command,
+      step.args,
+      step.label,
+      INSTALL_STEP_TIMEOUT_MS
+    );
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `${step.label} failed (exit ${result.exitCode}): ${
+          result.stderr.trim().slice(0, 500) || "no stderr"
+        }`
+      );
+    }
+  }
+}
+
 async function ensureInstalled(sandbox: Sandbox): Promise<void> {
   const name = sandbox.name;
   if (bootstrapped.has(name)) return;
@@ -42,23 +117,21 @@ async function ensureInstalled(sandbox: Sandbox): Promise<void> {
         { timeoutMs: 30_000 }
       );
       if (probe.exitCode === 0) {
+        console.log("[browser] agent-browser already installed");
         bootstrapped.add(name);
         return;
       }
-    } catch {
-      // Not installed yet — fall through to the full install.
+      console.log(
+        `[browser] agent-browser not found (exit ${probe.exitCode}) — starting bootstrap`
+      );
+    } catch (err) {
+      console.log(
+        "[browser] agent-browser probe threw — starting bootstrap:",
+        err instanceof Error ? err.message : err
+      );
     }
     try {
-      // The helper's session type declares `args: readonly string[]` while
-      // @vercel/sandbox uses `string[]`; the runtime contract is identical.
-      const results = await installAgentBrowserInVercelSandbox(
-        sandbox as unknown as Parameters<typeof installAgentBrowserInVercelSandbox>[0]
-      );
-      for (const result of results) {
-        if (result.exitCode !== 0) {
-          throw new Error(result.stderr.slice(0, 2000) || result.command);
-        }
-      }
+      await installInto(sandbox);
     } catch (err) {
       bootstrapPromise = null;
       bootstrapSandboxName = null;
@@ -79,7 +152,11 @@ export interface BrowserCommandOutput {
 
 // Cheap probe: is there a live browser session in this sandbox?
 export async function browserSessionActive(sandbox: Sandbox): Promise<boolean> {
-  await ensureInstalled(sandbox);
+  try {
+    await ensureInstalled(sandbox);
+  } catch {
+    return false;
+  }
   try {
     const argv = buildAgentBrowserArgv(["get", "url"], { json: true });
     const result = await sandbox.runCommand("agent-browser", argv, {
@@ -105,7 +182,17 @@ export async function browserRun(
   args: readonly string[],
   timeoutMs = DEFAULT_TIMEOUT_MS
 ): Promise<BrowserCommandOutput> {
-  await ensureInstalled(sandbox);
+  // Bootstrap failures are reported as normal tool output (visible in chat)
+  // instead of throwing, so the model — and you — can see the reason.
+  try {
+    await ensureInstalled(sandbox);
+  } catch (err) {
+    const detail =
+      err instanceof BrowserError && err.detail ? ` — ${err.detail}` : "";
+    const message =
+      err instanceof Error ? err.message : "Browser bootstrap failed";
+    return { ok: false, output: `${message}${detail}` };
+  }
   const argv = buildAgentBrowserArgv(args, { json: true });
   try {
     const result = await sandbox.runCommand("agent-browser", argv, {
