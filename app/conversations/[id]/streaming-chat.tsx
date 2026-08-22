@@ -517,8 +517,8 @@ function Composer({
   }
 
   return (
-<PromptInput onSubmit={handleSubmit}>
-      <PromptInputProvider>
+    <PromptInputProvider>
+      <PromptInput onSubmit={handleSubmit}>
         <PromptInputBody>
           <PromptInputTextarea
             ref={textareaRef}
@@ -554,7 +554,7 @@ function Composer({
           </PromptInputTools>
           <PromptInputSubmit />
         </PromptInputFooter>
-      </PromptInputProvider>
-    </PromptInput>
+      </PromptInput>
+    </PromptInputProvider>
   );
 }
