@@ -56,6 +56,7 @@ interface FileData {
   content?: string;
   binary?: boolean;
   tooLarge?: boolean;
+  image?: string;
 }
 
 const LANGUAGE_MAP: Record<string, BundledLanguage> = {
@@ -314,6 +315,19 @@ export default function MonitorPanel({
   }, [appendOutput, commandInput, conversationId, isStreaming]);
 
   const copyFile = useCallback(async () => {
+    if (file?.image) {
+      try {
+        const blob = await (await fetch(file.image)).blob();
+        await navigator.clipboard.write([
+          new ClipboardItem({ [blob.type]: blob }),
+        ]);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard unavailable — ignore.
+      }
+      return;
+    }
     if (!file?.content) return;
     try {
       await navigator.clipboard.writeText(file.content);
@@ -325,7 +339,15 @@ export default function MonitorPanel({
   }, [file]);
 
   const downloadFile = useCallback(() => {
-    if (!file?.content) return;
+    if (!file) return;
+    if (file.image) {
+      const anchor = document.createElement("a");
+      anchor.href = file.image;
+      anchor.download = file.name;
+      anchor.click();
+      return;
+    }
+    if (!file.content) return;
     const blob = new Blob([file.content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -424,7 +446,7 @@ export default function MonitorPanel({
                     : "Pick a file from the tree"}
                 </ArtifactDescription>
               </div>
-              {file?.content != null && (
+              {(file?.content != null || file?.image != null) && (
                 <ArtifactActions>
                   <ArtifactAction
                     icon={copied ? CheckIcon : CopyIcon}
@@ -451,6 +473,15 @@ export default function MonitorPanel({
               ) : file?.tooLarge ? (
                 <div className="p-4 text-sm text-zinc-500 dark:text-zinc-400">
                   File is too large to preview ({formatSize(file.size)}).
+                </div>
+              ) : file?.image ? (
+                <div className="flex items-center justify-center bg-zinc-100 p-4 dark:bg-zinc-900">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={file.image}
+                    alt={file.name}
+                    className="max-h-full max-w-full object-contain"
+                  />
                 </div>
               ) : file?.binary ? (
                 <div className="p-4 text-sm text-zinc-500 dark:text-zinc-400">
