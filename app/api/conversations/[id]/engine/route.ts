@@ -12,14 +12,19 @@ import { Sandbox } from "@vercel/sandbox";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db";
 import { createProviderModel } from "@/lib/ai";
-import { engineTools, SYSTEM_PROMPT } from "@/lib/engine";
+import { engineTools, SYSTEM_PROMPT, PLAN_MODE_PROMPT } from "@/lib/engine";
 import {
   listConversationMessages,
   toUIMessage,
   upsertAssistantMessage,
   extractText,
 } from "@/lib/messages";
-import { getSettings, getProviderKey, type Provider } from "@/lib/settings";
+import {
+  getSettings,
+  getProviderKey,
+  type Provider,
+  type Mode,
+} from "@/lib/settings";
 import { getInstallationTokenForUser } from "@/lib/github";
 
 const DEFAULT_PROVIDER: Provider = "opencode-go";
@@ -42,6 +47,7 @@ async function resolveModel(
     return {
       model: createProviderModel(provider, modelId, storedKey),
       loop: settings.loop,
+      mode: settings.mode,
       source: "user-key" as const,
     };
   }
@@ -50,11 +56,14 @@ async function resolveModel(
     return {
       model: createProviderModel(provider, modelId, process.env.OPENZEN_API_KEY),
       loop: settings.loop,
+      mode: settings.mode,
       source: "platform-key" as const,
     };
   }
   return null;
 }
+
+const PLAN_TOOLS = ["read_file", "list_files"] as const;
 
 function stepPhase(parts: UIMessage["parts"]): string {
   const toolParts = parts.filter(
@@ -84,7 +93,7 @@ export async function POST(
   const userId = session.user.id;
 
   const ownership = await pool.query(
-    `SELECT id, "sandboxId", "attachedRepository", provider, model
+    `SELECT id, "sandboxId", provider, model, mode
      FROM conversations WHERE id = $1 AND "userId" = $2`,
     [id, userId]
   );
@@ -135,11 +144,26 @@ export async function POST(
     loop: resolved.loop,
   });
 
+  // Per-conversation mode wins over the user-level default.
+  const mode: Mode =
+    (conversation.mode as Mode | null) ?? resolved.mode ?? "build";
+  const allTools = engineTools(sandbox, githubToken);
+  const tools =
+    mode === "plan"
+      ? Object.fromEntries(
+          PLAN_TOOLS.filter((name) => name in allTools).map((name) => [
+            name,
+            allTools[name],
+          ])
+        )
+      : allTools;
+  console.log("[engine] mode:", mode, "tools:", Object.keys(tools));
+
   const result = streamText({
     model: resolved.model,
-    system: SYSTEM_PROMPT,
+    system: mode === "plan" ? `${SYSTEM_PROMPT}\n\n${PLAN_MODE_PROMPT}` : SYSTEM_PROMPT,
     messages: modelMessages,
-    tools: engineTools(sandbox, githubToken),
+    tools,
     maxRetries: resolved.loop.maxRetries,
     stopWhen: ({ steps }) => steps.length >= resolved.loop.maxSteps,
     onStepFinish: ({ text, toolCalls, finishReason }) => {

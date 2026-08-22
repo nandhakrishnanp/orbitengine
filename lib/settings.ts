@@ -10,9 +10,12 @@ export const PROVIDERS = [
 ] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
+export const MODES = ["plan", "build"] as const;
+export type Mode = (typeof MODES)[number];
+
 export type SettingsData = {
   model?: { provider: Provider; id: string };
-  mode?: "plan" | "build";
+  mode?: Mode;
   loop?: { maxSteps?: number; maxRetries?: number };
 };
 
@@ -27,7 +30,7 @@ export const DEFAULT_SETTINGS: Required<
 
 export type ResolvedSettings = {
   model: SettingsData["model"];
-  mode: "plan" | "build";
+  mode: Mode;
   loop: { maxSteps: number; maxRetries: number };
 };
 

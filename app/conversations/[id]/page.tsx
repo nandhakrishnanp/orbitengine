@@ -33,6 +33,7 @@ export default async function ConversationPage({
       sandboxId: string | null;
       provider: string | null;
       model: string | null;
+      mode?: "plan" | "build" | null;
     };
     messages: Message[];
   } | null;
@@ -84,6 +85,7 @@ export default async function ConversationPage({
       <StreamingChat
         conversationId={conversation.id}
         initialMessages={chatMessages}
+        initialMode={conversation.mode ?? "build"}
         defaultModel={defaultModel}
         configuredProviders={configuredProviders}
       />

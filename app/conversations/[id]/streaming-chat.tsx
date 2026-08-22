@@ -50,7 +50,9 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
+import type { Mode } from "@/lib/settings";
 import ModelPicker from "./model-picker";
+import ModePicker from "./mode-picker";
 
 type Repo = {
   fullName: string;
@@ -307,11 +309,13 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
 export default function StreamingChat({
   conversationId,
   initialMessages,
+  initialMode,
   defaultModel,
   configuredProviders,
 }: {
   conversationId: string;
   initialMessages: UIMessage[];
+  initialMode?: Mode | null;
   defaultModel?: { provider: string; id: string } | null;
   configuredProviders?: string[];
 }) {
@@ -399,6 +403,7 @@ export default function StreamingChat({
             sendMessage={sendMessage}
             isStreaming={isStreaming}
             stop={stop}
+            initialMode={initialMode}
             defaultModel={defaultModel}
             configuredProviders={configuredProviders ?? []}
           />
@@ -413,6 +418,7 @@ function Composer({
   sendMessage,
   isStreaming,
   stop,
+  initialMode,
   defaultModel,
   configuredProviders,
 }: {
@@ -420,6 +426,7 @@ function Composer({
   sendMessage: ReturnType<typeof useChat>["sendMessage"];
   isStreaming: boolean;
   stop: () => void;
+  initialMode?: Mode | null;
   defaultModel?: { provider: string; id: string } | null;
   configuredProviders: string[];
 }) {
@@ -533,6 +540,10 @@ function Composer({
         </PromptInputBody>
         <PromptInputFooter className="mt-2 items-center justify-between">
           <PromptInputTools>
+            <ModePicker
+              conversationId={conversationId}
+              initialMode={initialMode}
+            />
             <ModelPicker
               conversationId={conversationId}
               currentProvider={null}
