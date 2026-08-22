@@ -12,7 +12,12 @@ import { Sandbox } from "@vercel/sandbox";
 import { auth } from "@/auth";
 import { pool } from "@/lib/db";
 import { createProviderModel } from "@/lib/ai";
-import { engineTools, SYSTEM_PROMPT, PLAN_MODE_PROMPT } from "@/lib/engine";
+import {
+  engineTools,
+  SYSTEM_PROMPT,
+  PLAN_MODE_PROMPT,
+  BROWSING_PROMPT,
+} from "@/lib/engine";
 import {
   listConversationMessages,
   toUIMessage,
@@ -156,12 +161,20 @@ export async function POST(
             allTools[name],
           ])
         )
-      : allTools;
+      : // Build mode gets everything, including the browser tools.
+        allTools;
   console.log("[engine] mode:", mode, "tools:", Object.keys(tools));
+
+  let system = SYSTEM_PROMPT;
+  if (mode === "plan") {
+    system += `\n\n${PLAN_MODE_PROMPT}`;
+  } else {
+    system += `\n\n${BROWSING_PROMPT}`;
+  }
 
   const result = streamText({
     model: resolved.model,
-    system: mode === "plan" ? `${SYSTEM_PROMPT}\n\n${PLAN_MODE_PROMPT}` : SYSTEM_PROMPT,
+    system,
     messages: modelMessages,
     tools,
     maxRetries: resolved.loop.maxRetries,
