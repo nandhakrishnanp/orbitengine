@@ -5,12 +5,14 @@ import {
   CircleCheck,
   FileText,
   FolderGit2,
-  GitBranch,
+  Globe,
+  Keyboard,
   ListTree,
-  Lock,
+  MousePointerClick,
   Sparkles,
   Square,
   SquareTerminal,
+  TextCursorInput,
   XCircle,
 } from "lucide-react";
 import { useChat } from "@ai-sdk/react";
@@ -61,6 +63,13 @@ type Repo = {
   private: boolean;
 };
 
+type BrowserToolOutput = {
+  ok?: boolean;
+  output?: string;
+  snapshot?: string;
+  pass?: boolean;
+};
+
 type EngineTools = {
   run_command: { input: { command: string }; output: { exitCode: number; stdout: string; stderr: string } };
   read_file: { input: { path: string }; output: { content?: string; error?: string } };
@@ -69,6 +78,13 @@ type EngineTools = {
   create_pull_request: { input: { owner: string; repo: string; title: string; head: string; base: string; body?: string }; output: { number: number; url: string; title: string } };
   create_issue: { input: { owner: string; repo: string; title: string; body?: string; labels?: string[] }; output: { number: number; url: string; title: string } };
   create_repository: { input: { name: string; description?: string; private?: boolean }; output: { fullName: string; url: string; cloneUrl: string; owner: string; name: string } };
+  browser_open: { input: { url: string }; output: BrowserToolOutput };
+  browser_snapshot: { input: Record<string, never>; output: BrowserToolOutput & { snapshot?: string } };
+  browser_click: { input: { ref: string }; output: BrowserToolOutput };
+  browser_fill: { input: { ref: string; text: string }; output: BrowserToolOutput };
+  browser_press: { input: { key: string }; output: BrowserToolOutput };
+  browser_verify: { input: { kind: "title" | "url" | "text"; text?: string }; output: BrowserToolOutput };
+  browser_close: { input: Record<string, never>; output: BrowserToolOutput };
 };
 
 const toolTitles: Record<string, string> = {
@@ -79,6 +95,13 @@ const toolTitles: Record<string, string> = {
   create_pull_request: "Open pull request",
   create_issue: "Create issue",
   create_repository: "Create repository",
+  browser_open: "Open page",
+  browser_snapshot: "Page snapshot",
+  browser_click: "Click element",
+  browser_fill: "Fill field",
+  browser_press: "Press key",
+  browser_verify: "Verify page",
+  browser_close: "Close browser",
 };
 
 const LANGUAGE_MAP: Record<string, BundledLanguage> = {
@@ -133,6 +156,19 @@ function languageFor(name: string): BundledLanguage {
 }
 
 const FILE_TOOLS = ["read_file", "write_file", "list_files"] as const;
+const BROWSER_ACTION_TOOLS = [
+  "browser_click",
+  "browser_fill",
+  "browser_press",
+] as const;
+
+function BrowserSnapshotText({ text }: { text: string }) {
+  return (
+    <pre className="max-h-64 overflow-auto rounded-md bg-muted/50 p-3 font-mono text-xs whitespace-pre-wrap">
+      {text}
+    </pre>
+  );
+}
 
 function FriendlyInput({
   toolName,
@@ -163,6 +199,84 @@ function FriendlyInput({
         </span>
       </div>
     );
+  }
+
+  if (toolName === "browser_open") {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+        <Globe className="size-4 shrink-0 text-muted-foreground" />
+        <span className="truncate font-mono text-xs">
+          {(input.url as string) || "Navigating…"}
+        </span>
+      </div>
+    );
+  }
+
+  if (toolName === "browser_click") {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+        <MousePointerClick className="size-4 shrink-0 text-muted-foreground" />
+        <span className="font-mono text-xs">
+          {(input.ref as string) || "…"}
+        </span>
+      </div>
+    );
+  }
+
+  if (toolName === "browser_fill") {
+    const text = input.text as string | undefined;
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+        <TextCursorInput className="size-4 shrink-0 text-muted-foreground" />
+        <span className="font-mono text-xs">
+          {(input.ref as string) || "—"}
+          {text ? ` ← ${text.length > 40 ? `${text.slice(0, 40)}…` : text}` : ""}
+        </span>
+      </div>
+    );
+  }
+
+  if (toolName === "browser_press") {
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+        <Keyboard className="size-4 shrink-0 text-muted-foreground" />
+        <span className="font-mono text-xs">
+          {(input.key as string) || "…"}
+        </span>
+      </div>
+    );
+  }
+
+  if (toolName === "browser_verify") {
+    const kind = input.kind as string | undefined;
+    const text = input.text as string | undefined;
+    return (
+      <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm">
+        <ListTree className="size-4 shrink-0 text-muted-foreground" />
+        <span className="font-mono text-xs">
+          {kind === "text"
+            ? `visible: "${text ?? "?"}"`
+            : kind
+              ? `${kind} of page`
+              : "…"}
+        </span>
+      </div>
+    );
+  }
+
+  if (
+    toolName === "browser_snapshot" ||
+    toolName === "browser_close"
+  ) {
+    if (toolName === "browser_snapshot") {
+      return (
+        <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+          <Globe className="size-4 shrink-0" />
+          <span className="font-mono text-xs">Reading accessibility tree…</span>
+        </div>
+      );
+    }
+    return null;
   }
 
   return <ToolInput input={input} />;
@@ -248,6 +362,64 @@ function FriendlyOutput({
     );
   }
 
+  if (
+    (BROWSER_ACTION_TOOLS as readonly string[]).includes(toolName) ||
+    toolName === "browser_open" ||
+    toolName === "browser_snapshot"
+  ) {
+    const out = output as BrowserToolOutput | undefined;
+    if (!out) return null;
+    if (out.ok === false) {
+      return (
+        <p className="flex items-center gap-2 text-sm text-red-500 dark:text-red-400">
+          <XCircle className="size-4 shrink-0" />
+          {out.output ?? "Failed"}
+        </p>
+      );
+    }
+    const body = out.snapshot ?? out.output;
+    if (!body) return null;
+    return (
+      <div className="flex w-full items-start gap-2">
+        <Globe className="mt-1 size-4 shrink-0 text-muted-foreground" />
+        <BrowserSnapshotText text={body} />
+      </div>
+    );
+  }
+
+  if (toolName === "browser_verify") {
+    const out = output as BrowserToolOutput | undefined;
+    if (!out) return null;
+    const passed = out.pass === true || (out.ok && out.pass === undefined);
+    return (
+      <p
+        className={`flex items-center gap-2 text-sm ${
+          passed
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-red-500 dark:text-red-400"
+        }`}
+      >
+        {passed ? (
+          <CircleCheck className="size-4 shrink-0" />
+        ) : (
+          <XCircle className="size-4 shrink-0" />
+        )}
+        {passed ? "PASS — verified on the page" : "FAIL"}
+      </p>
+    );
+  }
+
+  if (toolName === "browser_close") {
+    const out = output as BrowserToolOutput | undefined;
+    if (!out) return null;
+    return out.ok ? null : (
+      <p className="flex items-center gap-2 text-sm text-red-500 dark:text-red-400">
+        <XCircle className="size-4 shrink-0" />
+        {out.output ?? "Failed to close browser"}
+      </p>
+    );
+  }
+
   return null;
 }
 
@@ -256,6 +428,7 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
   const isRunCommand = toolName === "run_command";
   const isGitHubTool = toolName === "create_pull_request" || toolName === "create_issue" || toolName === "create_repository";
   const isFileTool = (FILE_TOOLS as readonly string[]).includes(toolName);
+  const isBrowserTool = toolName.startsWith("browser_");
   const output = part.output as Record<string, unknown> | undefined;
   const input = part.input as Record<string, unknown> | undefined;
 
@@ -267,6 +440,11 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
     if (toolName === "create_pull_request") return `${input.owner}/${input.repo}`;
     if (toolName === "create_issue") return `${input.owner}/${input.repo}`;
     if (toolName === "create_repository") return input.name;
+    if (toolName === "browser_open") return input.url;
+    if (toolName === "browser_click" || toolName === "browser_fill") return input.ref;
+    if (toolName === "browser_press") return input.key;
+    if (toolName === "browser_verify")
+      return input.kind === "text" ? `text: ${input.text}` : input.kind;
     return null;
   })();
 
@@ -298,7 +476,10 @@ function ToolCall({ part }: { part: ToolUIPart<EngineTools> }) {
         {isFileTool && (
           <FriendlyOutput toolName={toolName} input={input} output={output} />
         )}
-        {!isRunCommand && !isGitHubTool && !isFileTool && (
+        {isBrowserTool && (
+          <FriendlyOutput toolName={toolName} input={input} output={output} />
+        )}
+        {!isRunCommand && !isGitHubTool && !isFileTool && !isBrowserTool && (
           <ToolOutput output={part.output} errorText={part.errorText} />
         )}
       </ToolContent>

@@ -82,10 +82,15 @@ export default function BrowserView({
 
   useEffect(() => {
     if (!sandboxOpen) return;
-    void poll();
-    if (paused) return;
+    const initial = setTimeout(() => void poll(), 0);
+    if (paused) {
+      return () => clearTimeout(initial);
+    }
     const timer = setInterval(() => void poll(), POLL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(timer);
+    };
   }, [sandboxOpen, paused, poll]);
 
   async function startSession() {
