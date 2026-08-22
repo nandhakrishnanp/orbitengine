@@ -106,6 +106,24 @@ export async function walkSandboxTree(
 
 const MAX_FILE_SIZE = 1024 * 1024;
 
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "ico",
+  "bmp",
+]);
+
+function imageMediaType(name: string): string | null {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  if (!IMAGE_EXTENSIONS.has(ext)) return null;
+  if (ext === "jpg") return "image/jpeg";
+  return `image/${ext}`;
+}
+
 export interface SandboxFileResult {
   path: string;
   name: string;
@@ -113,6 +131,7 @@ export interface SandboxFileResult {
   content?: string;
   binary?: boolean;
   tooLarge?: boolean;
+  image?: string;
 }
 
 export async function readSandboxFile(
@@ -135,7 +154,14 @@ export async function readSandboxFile(
   if (stats.size > MAX_FILE_SIZE) {
     return { ...base, tooLarge: true };
   }
+  const mediaType = imageMediaType(base.name);
   const buffer = await sandbox.fs.readFile(resolved);
+  if (mediaType) {
+    return {
+      ...base,
+      image: `data:${mediaType};base64,${buffer.toString("base64")}`,
+    };
+  }
   if (buffer.subarray(0, 8192).includes(0)) {
     return { ...base, binary: true };
   }
