@@ -63,6 +63,11 @@ type Repo = {
   private: boolean;
 };
 
+type Skill = {
+  id: string;
+  name: string;
+};
+
 type BrowserToolOutput = {
   ok?: boolean;
   output?: string;
@@ -613,8 +618,11 @@ function Composer({
 }) {
   const [input, setInput] = useState("");
   const [repos, setRepos] = useState<Repo[]>([]);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [skillOpen, setSkillOpen] = useState(false);
+  const [skillQuery, setSkillQuery] = useState("");
   const [highlighted, setHighlighted] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -623,6 +631,10 @@ function Composer({
       .then((res) => (res.ok ? res.json() : { repos: [] }))
       .then((data) => setRepos(data.repos ?? []))
       .catch(() => setRepos([]));
+    fetch("/api/skills")
+      .then((res) => (res.ok ? res.json() : { skills: [] }))
+      .then((data) => setSkills(data.skills ?? []))
+      .catch(() => setSkills([]));
   }, []);
 
   const filteredRepos = useMemo(() => {
@@ -634,6 +646,12 @@ function Composer({
         repo.name.toLowerCase().includes(q)
     );
   }, [repos, mentionQuery]);
+
+  const filteredSkills = useMemo(() => {
+    if (!skillQuery) return skills;
+    const q = skillQuery.toLowerCase();
+    return skills.filter((skill) => skill.name.toLowerCase().includes(q));
+  }, [skills, skillQuery]);
 
   function parseMention(next: string) {
     const tokens = next.split(" ");
@@ -649,6 +667,17 @@ function Composer({
     } else {
       setMentionOpen(false);
     }
+    if (last.startsWith("/") && last.length > 1) {
+      setSkillQuery(last.slice(1));
+      setSkillOpen(true);
+      setHighlighted(0);
+    } else if (last === "/") {
+      setSkillQuery("");
+      setSkillOpen(true);
+      setHighlighted(0);
+    } else {
+      setSkillOpen(false);
+    }
   }
 
   function selectRepo(repo: Repo) {
@@ -661,7 +690,38 @@ function Composer({
     textareaRef.current?.focus();
   }
 
+  function selectSkill(skill: Skill) {
+    const tokens = input.split(" ");
+    tokens[tokens.length - 1] = `/${skill.name} `;
+    const next = tokens.join(" ");
+    setInput(next);
+    if (textareaRef.current) textareaRef.current.value = next;
+    setSkillOpen(false);
+    textareaRef.current?.focus();
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (skillOpen && filteredSkills.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlighted((h) => (h + 1) % filteredSkills.length);
+        return;
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlighted(
+          (h) => (h - 1 + filteredSkills.length) % filteredSkills.length
+        );
+        return;
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        selectSkill(filteredSkills[highlighted]);
+        return;
+      } else if (e.key === "Escape") {
+        setSkillOpen(false);
+        return;
+      }
+    }
+
     if (!mentionOpen || filteredRepos.length === 0) return;
 
     if (e.key === "ArrowDown") {
@@ -694,6 +754,7 @@ function Composer({
     }
     setInput("");
     setMentionOpen(false);
+    setSkillOpen(false);
     sendMessage({ text });
   }
 
@@ -701,7 +762,33 @@ function Composer({
     <PromptInputProvider>
       <PromptInput onSubmit={handleSubmit}>
         <PromptInputBody>
-          <PromptInputTextarea
+          <div className="relative">
+            {skillOpen && filteredSkills.length > 0 && (
+              <div className="absolute bottom-full left-0 z-10 mb-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+                <ul className="max-h-48 overflow-auto py-1">
+                  {filteredSkills.map((skill, i) => (
+                    <li key={skill.id}>
+                      <button
+                        type="button"
+                        className={`flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm ${
+                          i === highlighted
+                            ? "bg-zinc-100 dark:bg-zinc-800"
+                            : ""
+                        }`}
+                        onMouseEnter={() => setHighlighted(i)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectSkill(skill);
+                        }}
+                      >
+                        <span className="font-mono">/{skill.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <PromptInputTextarea
             ref={textareaRef}
             value={input}
             onChange={(e) => {
@@ -712,12 +799,13 @@ function Composer({
             placeholder={
               isStreaming
                 ? "Engine is working…"
-                : "Type @ to pick a repo, then describe the change…"
+                : "Type @ to pick a repo, / to use a skill, then describe the change…"
             }
             disabled={isStreaming}
             rows={2}
             className="border-0 bg-transparent px-4 py-3 text-sm focus-visible:ring-0 disabled:opacity-50"
           />
+          </div>
         </PromptInputBody>
         <PromptInputFooter className="mt-2 items-center justify-between">
           <PromptInputTools>
