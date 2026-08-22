@@ -5,6 +5,7 @@ import { BoxIcon, MessageSquareTextIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectLabel,
   SelectTrigger,
@@ -86,25 +87,27 @@ export default function ModePicker({
         </span>
       </SelectTrigger>
       <SelectContent side="top" align="start" className="w-72 min-w-72">
-        <SelectLabel>&#8984; I to switch modes</SelectLabel>
-        {MODE_OPTIONS.map((option) => {
-          const Icon = option.icon;
-          return (
-            <SelectItem
-              key={option.value}
-              value={option.value}
-              className="py-2"
-            >
-              <Icon className="size-4 text-muted-foreground" />
-              <span className="whitespace-normal leading-snug">
-                <span className="font-medium">{option.label}</span>{" "}
-                <span className="text-muted-foreground">
-                  {option.description}
+        <SelectGroup>
+          <SelectLabel>&#8984; I to switch modes</SelectLabel>
+          {MODE_OPTIONS.map((option) => {
+            const Icon = option.icon;
+            return (
+              <SelectItem
+                key={option.value}
+                value={option.value}
+                className="py-2"
+              >
+                <Icon className="size-4 text-muted-foreground" />
+                <span className="whitespace-normal leading-snug">
+                  <span className="font-medium">{option.label}</span>{" "}
+                  <span className="text-muted-foreground">
+                    {option.description}
+                  </span>
                 </span>
-              </span>
-            </SelectItem>
-          );
-        })}
+              </SelectItem>
+            );
+          })}
+        </SelectGroup>
       </SelectContent>
     </Select>
   );
