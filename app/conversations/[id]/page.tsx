@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { MessageSquare, MonitorIcon } from "lucide-react";
+import { GlobeIcon, MessageSquare, MonitorIcon } from "lucide-react";
 import type { UIMessage } from "ai";
 import { apiFetch } from "@/lib/api";
 import SandboxStatus from "./sandbox-status";
@@ -72,13 +72,22 @@ export default async function ConversationPage({
           sandboxId={conversation.sandboxId}
         />
         {conversation.sandboxId && conversation.status === "open" && (
-          <Link
-            href={`/conversations/${conversation.id}/monitor`}
-            className="ml-auto flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-          >
-            <MonitorIcon className="size-4" />
-            Monitor
-          </Link>
+          <>
+            <Link
+              href={`/conversations/${conversation.id}/browser`}
+              className="ml-auto flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            >
+              <GlobeIcon className="size-4" />
+              Browser
+            </Link>
+            <Link
+              href={`/conversations/${conversation.id}/monitor`}
+              className="flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            >
+              <MonitorIcon className="size-4" />
+              Monitor
+            </Link>
+          </>
         )}
       </header>
 
