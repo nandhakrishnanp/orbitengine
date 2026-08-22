@@ -50,7 +50,10 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { PromptInputProvider } from "@/components/ai-elements/prompt-input";
+import {
+  PromptInputProvider,
+  usePromptInputController,
+} from "@/components/ai-elements/prompt-input";
 import { Button } from "@/components/ui/button";
 import type { Mode } from "@/lib/settings";
 import ModelPicker from "./model-picker";
@@ -616,7 +619,40 @@ function Composer({
   defaultModel?: { provider: string; id: string } | null;
   configuredProviders: string[];
 }) {
-  const [input, setInput] = useState("");
+  return (
+    <PromptInputProvider>
+      <ComposerBody
+        conversationId={conversationId}
+        sendMessage={sendMessage}
+        isStreaming={isStreaming}
+        stop={stop}
+        initialMode={initialMode}
+        defaultModel={defaultModel}
+        configuredProviders={configuredProviders}
+      />
+    </PromptInputProvider>
+  );
+}
+
+function ComposerBody({
+  conversationId,
+  sendMessage,
+  isStreaming,
+  stop,
+  initialMode,
+  defaultModel,
+  configuredProviders,
+}: {
+  conversationId: string;
+  sendMessage: ReturnType<typeof useChat>["sendMessage"];
+  isStreaming: boolean;
+  stop: () => void;
+  initialMode?: Mode | null;
+  defaultModel?: { provider: string; id: string } | null;
+  configuredProviders: string[];
+}) {
+  const { textInput } = usePromptInputController();
+  const input = textInput.value;
   const [repos, setRepos] = useState<Repo[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -684,8 +720,7 @@ function Composer({
     const tokens = input.split(" ");
     tokens[tokens.length - 1] = `@${repo.fullName} `;
     const next = tokens.join(" ");
-    setInput(next);
-    if (textareaRef.current) textareaRef.current.value = next;
+    textInput.setInput(next);
     setMentionOpen(false);
     textareaRef.current?.focus();
   }
@@ -694,8 +729,7 @@ function Composer({
     const tokens = input.split(" ");
     tokens[tokens.length - 1] = `/${skill.name} `;
     const next = tokens.join(" ");
-    setInput(next);
-    if (textareaRef.current) textareaRef.current.value = next;
+    textInput.setInput(next);
     setSkillOpen(false);
     textareaRef.current?.focus();
   }
@@ -752,7 +786,7 @@ function Composer({
     } catch {
       // Non-fatal: the engine builds context from the DB; still send anyway.
     }
-    setInput("");
+    textInput.setInput("");
     setMentionOpen(false);
     setSkillOpen(false);
     sendMessage({ text });
@@ -760,41 +794,37 @@ function Composer({
 
   return (
     <PromptInputProvider>
-      <PromptInput onSubmit={handleSubmit}>
-        <PromptInputBody>
-          <div className="relative">
-            {skillOpen && filteredSkills.length > 0 && (
-              <div className="absolute bottom-full left-0 z-10 mb-2 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-                <ul className="max-h-48 overflow-auto py-1">
-                  {filteredSkills.map((skill, i) => (
-                    <li key={skill.id}>
-                      <button
-                        type="button"
-                        className={`flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm ${
-                          i === highlighted
-                            ? "bg-zinc-100 dark:bg-zinc-800"
-                            : ""
-                        }`}
-                        onMouseEnter={() => setHighlighted(i)}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          selectSkill(skill);
-                        }}
-                      >
-                        <span className="font-mono">/{skill.name}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+      <div className="relative">
+        {skillOpen && filteredSkills.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 z-10 mb-2 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+            <ul className="max-h-48 overflow-auto py-1">
+              {filteredSkills.map((skill, i) => (
+                <li key={skill.id}>
+                  <button
+                    type="button"
+                    className={`flex w-full items-center gap-2 px-4 py-1.5 text-left text-sm ${
+                      i === highlighted ? "bg-zinc-100 dark:bg-zinc-800" : ""
+                    }`}
+                    onMouseEnter={() => setHighlighted(i)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectSkill(skill);
+                    }}
+                  >
+                    <span className="font-mono">/{skill.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <PromptInput onSubmit={handleSubmit}>
+          <PromptInputBody>
             <PromptInputTextarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              parseMention(e.target.value);
-            }}
+              ref={textareaRef}
+              onChange={(e) => {
+                parseMention(e.target.value);
+              }}
             onKeyDown={handleKeyDown}
             placeholder={
               isStreaming
@@ -805,9 +835,8 @@ function Composer({
             rows={2}
             className="border-0 bg-transparent px-4 py-3 text-sm focus-visible:ring-0 disabled:opacity-50"
           />
-          </div>
-        </PromptInputBody>
-        <PromptInputFooter className="mt-2 items-center justify-between">
+          </PromptInputBody>
+          <PromptInputFooter className="mt-2 items-center justify-between">
           <PromptInputTools>
             <ModePicker
               conversationId={conversationId}
@@ -822,8 +851,9 @@ function Composer({
             />
           </PromptInputTools>
           <PromptInputSubmit />
-        </PromptInputFooter>
-      </PromptInput>
+          </PromptInputFooter>
+        </PromptInput>
+      </div>
     </PromptInputProvider>
   );
 }
