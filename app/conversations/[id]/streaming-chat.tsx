@@ -50,11 +50,6 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import {
-  PromptInputProvider,
-  usePromptInputController,
-} from "@/components/ai-elements/prompt-input";
-import { Button } from "@/components/ui/button";
 import type { Mode } from "@/lib/settings";
 import ModelPicker from "./model-picker";
 import ModePicker from "./mode-picker";
@@ -620,17 +615,15 @@ function Composer({
   configuredProviders: string[];
 }) {
   return (
-    <PromptInputProvider>
-      <ComposerBody
-        conversationId={conversationId}
-        sendMessage={sendMessage}
-        isStreaming={isStreaming}
-        stop={stop}
-        initialMode={initialMode}
-        defaultModel={defaultModel}
-        configuredProviders={configuredProviders}
-      />
-    </PromptInputProvider>
+    <ComposerBody
+      conversationId={conversationId}
+      sendMessage={sendMessage}
+      isStreaming={isStreaming}
+      stop={stop}
+      initialMode={initialMode}
+      defaultModel={defaultModel}
+      configuredProviders={configuredProviders}
+    />
   );
 }
 
@@ -651,8 +644,7 @@ function ComposerBody({
   defaultModel?: { provider: string; id: string } | null;
   configuredProviders: string[];
 }) {
-  const { textInput } = usePromptInputController();
-  const input = textInput.value;
+  const [input, setInput] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [repos, setRepos] = useState<Repo[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -720,8 +712,7 @@ function ComposerBody({
   function selectRepo(repo: Repo) {
     const tokens = input.split(" ");
     tokens[tokens.length - 1] = `@${repo.fullName} `;
-    const next = tokens.join(" ");
-    textInput.setInput(next);
+    setInput(tokens.join(" "));
     setMentionOpen(false);
     textareaRef.current?.focus();
   }
@@ -734,7 +725,7 @@ function ComposerBody({
     // along as a chip and is prepended to the message on submit.
     const tokens = input.split(" ");
     tokens.splice(-1, 1);
-    textInput.setInput(tokens.length > 0 ? tokens.join(" ") + " " : "");
+    setInput(tokens.length > 0 ? tokens.join(" ") + " " : "");
     setSkillOpen(false);
     textareaRef.current?.focus();
   }
@@ -800,13 +791,13 @@ function ComposerBody({
     setSelectedSkills([]);
     setMentionOpen(false);
     setSkillOpen(false);
+    setInput("");
     sendMessage({ text });
   }
 
   return (
-    <PromptInputProvider>
-      <div className="relative">
-        {skillOpen && filteredSkills.length > 0 && (
+    <div className="relative">
+      {skillOpen && filteredSkills.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 z-10 mb-2 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
             <ul className="max-h-48 overflow-auto py-1">
               {filteredSkills.map((skill, i) => (
@@ -829,38 +820,70 @@ function ComposerBody({
             </ul>
           </div>
         )}
+        {mentionOpen && filteredRepos.length > 0 && (
+          <div className="absolute bottom-full left-0 right-0 z-10 mb-2 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+            <ul className="max-h-48 overflow-auto py-1">
+              {filteredRepos.slice(0, 8).map((repo, i) => (
+                <li key={repo.fullName}>
+                  <button
+                    type="button"
+                    onMouseEnter={() => setHighlighted(i)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectRepo(repo);
+                    }}
+                    className={`flex w-full items-center justify-between px-4 py-1.5 text-left text-sm ${
+                      i === highlighted ? "bg-zinc-100 dark:bg-zinc-800" : ""
+                    }`}
+                  >
+                    <span className="truncate font-medium">
+                      {repo.fullName}
+                    </span>
+                    {repo.private && (
+                      <span className="ml-2 shrink-0 rounded-full bg-zinc-200 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                        private
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <PromptInput onSubmit={handleSubmit}>
           <PromptInputBody>
             <PromptInputTextarea
               ref={textareaRef}
+              value={input}
               onChange={(e) => {
+                setInput(e.target.value);
                 parseMention(e.target.value);
               }}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isStreaming
-                ? "Engine is working…"
-                : "Type @ to pick a repo, / to use a skill, then describe the change…"
-            }
-            disabled={isStreaming}
-            rows={2}
-            className="border-0 bg-transparent px-4 py-3 text-sm focus-visible:ring-0 disabled:opacity-50"
-          />
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isStreaming
+                  ? "Engine is working…"
+                  : "Type @ to pick a repo, / to use a skill, then describe the change…"
+              }
+              disabled={isStreaming}
+              rows={2}
+              className="w-full block resize-none border-0 bg-transparent px-4 py-3 text-left text-sm focus-visible:ring-0 disabled:opacity-50"
+            />
           </PromptInputBody>
-          <PromptInputFooter className="mt-2 items-center justify-between">
-          <PromptInputTools>
+          <PromptInputFooter className="mt-2 items-center justify-between px-3 pb-2">
+            <PromptInputTools className="gap-1.5">
             {selectedSkills.length > 0 && (
               <span className="flex items-center gap-1">
                 {selectedSkills.map((name) => (
                   <span
                     key={name}
-                    className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-mono text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
+                    className="inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-transparent pr-2 pl-3 text-xs font-normal text-foreground select-none dark:bg-input/30"
                   >
-                    /{name}
+                    <span className="font-mono">/{name}</span>
                     <button
                       type="button"
                       aria-label={`Remove ${name}`}
-                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                      className="flex items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
                       onClick={() => removeSkill(name)}
                     >
                       ×
@@ -884,7 +907,6 @@ function ComposerBody({
           <PromptInputSubmit />
           </PromptInputFooter>
         </PromptInput>
-      </div>
-    </PromptInputProvider>
+    </div>
   );
 }

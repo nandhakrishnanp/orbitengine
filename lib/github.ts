@@ -77,7 +77,11 @@ async function getProviderAccountId(userId: string): Promise<string> {
   return id;
 }
 
-async function getInstallationIdForUser(userId: string): Promise<number> {
+type AppInstallation = { id: number; account: { id: number } };
+
+async function findInstallationForUser(
+  userId: string
+): Promise<AppInstallation | null> {
   const providerAccountId = await getProviderAccountId(userId);
   const jwt = createAppJwt();
 
@@ -85,12 +89,34 @@ async function getInstallationIdForUser(userId: string): Promise<number> {
     Array<{ id: number; account: { id: number } }>
   >("/app/installations?per_page=100", jwt);
 
-  const installation = installations.find(
-    (item) => String(item.account.id) === providerAccountId
+  return (
+    installations.find(
+      (item) => String(item.account.id) === providerAccountId
+    ) ?? null
   );
+}
+
+export async function isGitHubAppInstalled(userId: string): Promise<boolean> {
+  return (await findInstallationForUser(userId)) !== null;
+}
+
+export async function getGitHubAppInstallUrl(): Promise<string> {
+  const jwt = createAppJwt();
+  const app = await githubRequest<{ slug: string }>("/app", jwt);
+  return `https://github.com/apps/${app.slug}/installations/new`;
+}
+
+async function getInstallationIdForUser(userId: string): Promise<number> {
+  const installation = await findInstallationForUser(userId);
   if (!installation) {
+    let hint = "";
+    try {
+      hint = ` Install it at ${await getGitHubAppInstallUrl()}`;
+    } catch {
+      // Install URL lookup is best-effort; keep the original error clean.
+    }
     throw new Error(
-      "The GitHub App is not installed on your account; install it to attach repositories"
+      `The GitHub App is not installed on your account; install it to attach repositories.${hint}`
     );
   }
   return installation.id;

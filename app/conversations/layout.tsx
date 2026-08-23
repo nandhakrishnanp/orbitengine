@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { apiFetch } from "@/lib/api";
+import InstallBanner from "@/components/github/install-banner";
 import Sidebar from "./sidebar";
 
 export const metadata = { title: "OrbitEngine" };
@@ -21,7 +22,10 @@ export default async function ConversationsLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar user={session.user} conversations={conversations} />
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      <main className="flex min-w-0 flex-1 flex-col">
+        <InstallBanner />
+        {children}
+      </main>
     </div>
   );
 }
