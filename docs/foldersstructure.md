@@ -1,6 +1,6 @@
 # OrbitEngine — Folder Structure
 
-> Generated 2026-08-21 · reflects v1 (MVP) codebase
+> Generated 2026-08-23 · reflects v2 codebase (T01–T08, T10 built; T06/T09/T11–T13 open)
 
 ## Tree Overview
 
@@ -25,6 +25,11 @@ orbitengine/
 │   │   │       │   └── route.ts      # POST — persist user/assistant messages
 │   │   │       ├── sandbox/
 │   │   │       │   └── route.ts      # POST — provision or reopen sandbox
+│   │   │       ├── traces/
+│   │   │       │   └── route.ts      # GET — trace runs + spans for the conversation (ADR-0021)
+│   │   │       ├── browser/
+│   │   │       │   ├── frame/route.ts  # GET — live browser frame (JPEG data URL) or {idle}
+│   │   │       │   └── start/route.ts  # POST — start a browser session on demand
 │   │   │       └── monitor/
 │   │   │           ├── tree/
 │   │   │           │   └── route.ts  # GET — sandbox file tree (bounded walk)
@@ -32,20 +37,43 @@ orbitengine/
 │   │   │           │   └── route.ts  # GET — read sandbox file (1 MB cap, binary detection)
 │   │   │           └── command/
 │   │   │               └── route.ts  # POST — run command, SSE stream output + exit code
-│   │   └── repos/
-│   │       └── route.ts              # GET — repos for @-mention autocomplete
+│   │   ├── github/
+│   │   │   └── installation-status/
+│   │   │       └── route.ts          # GET — is the GitHub App installed? returns install URL if not
+│   │   ├── models/[provider]/
+│   │   │   └── route.ts              # GET — live model list for a provider
+│   │   ├── repos/
+│   │   │   └── route.ts              # GET — repos for @-mention autocomplete
+│   │   ├── settings/
+│   │   │   ├── route.ts              # GET/PUT — user settings (default model/mode, loop params)
+│   │   │   └── keys/[provider]/
+│   │   │       └── route.ts          # PUT/DELETE — encrypted provider API keys
+│   │   └── skills/
+│   │       ├── route.ts              # GET/POST — skill library
+│   │       └── [name]/
+│   │           └── route.ts          # GET/PATCH/DELETE — single skill (owner only)
 │   └── conversations/
-│       ├── layout.tsx                # Auth gate + sidebar shell
+│       ├── layout.tsx                # Auth gate + sidebar shell (+ InstallBanner)
 │       ├── page.tsx                  # Empty state or "New conversation" prompt
 │       ├── sidebar.tsx               # Conversation list, user info, sign-out
 │       └── [id]/
-│           ├── page.tsx              # Chat view: header, sandbox status, Monitor link
-│           ├── streaming-chat.tsx    # Client: useChat, @-mention picker, tool cards
+│           ├── page.tsx              # Chat view: header, sandbox status, Monitor/Browser links
+│           ├── streaming-chat.tsx    # Client: useChat, message stream, tool-card rendering
+│           ├── composer.tsx          # Client: prompt input, model/mode pickers, @-mention + /skill pickers
+│           ├── engine-tool-call.tsx  # Client: engine tool-call cards in the stream
 │           ├── sandbox-status.tsx    # Client: provisioning/ready/closed badges, close/reopen
+│           ├── mode-picker.tsx       # Client: Plan/Build switch (⌘I), persisted via PATCH
+│           ├── model-picker.tsx      # Client: per-conversation provider + model selection
 │           ├── message-composer.tsx  # Unused (dead code — see Findings)
-│           └── monitor/
-│               ├── page.tsx          # Auth gate, renders MonitorPanel
-│               └── monitor-panel.tsx # Client: FileTree + Artifact viewer + Terminal
+│           ├── monitor/
+│           │   ├── page.tsx          # Auth gate, renders MonitorPanel
+│           │   └── monitor-panel.tsx # Client: FileTree + Artifact viewer + Terminal
+│           ├── browser/
+│           │   ├── page.tsx          # Auth-gated Browser shell
+│           │   └── browser-view.tsx  # Client: screenshot polling, pause/resume, URL strip
+│           └── traces/
+│               ├── page.tsx          # Auth gate + trace list for the conversation
+│               └── trace-run-card.tsx# Client: colored timeline, badges, shiki span details
 │
 ├── components/
 │   ├── ai-elements/                  # Chat rendering primitives
@@ -54,10 +82,14 @@ orbitengine/
 │   │   ├── conversation.tsx          # Scrollable conversation container
 │   │   ├── file-tree.tsx             # Interactive file tree (folders + files)
 │   │   ├── message.tsx               # Message bubble wrapper
+│   │   ├── model-selector.tsx        # Provider/model dropdown primitive
+│   │   ├── prompt-input.tsx          # Composer primitives (PromptInput family)
 │   │   ├── reasoning.tsx             # Collapsible reasoning block
 │   │   ├── shimmer.tsx               # Loading shimmer animation
 │   │   ├── terminal.tsx              # Terminal output with ANSI rendering
 │   │   └── tool.tsx                  # Collapsible tool-call card
+│   ├── github/
+│   │   └── install-banner.tsx        # Amber banner + install link when GitHub App not installed
 │   ├── landing/
 │   │   └── landing-page.tsx          # Unauthenticated landing / sign-in page
 │   └── ui/                           # shadcn/ui primitives
@@ -69,7 +101,7 @@ orbitengine/
 │       └── tooltip.tsx
 │
 ├── db/
-│   └── schema.sql                    # Idempotent Postgres schema (6 tables)
+│   └── schema.sql                    # Idempotent Postgres schema (11 tables)
 │
 ├── docs/
 │   ├── architecture.md               # System architecture, data model, API routes, UI components
@@ -97,7 +129,8 @@ orbitengine/
 │   │   ├── 0019-agent-browser-in-sandbox.md         # v2 ADR
 │   │   ├── 0020-server-side-engine-step-persistence.md # v2 ADR
 │   │   ├── 0021-observability-trace-store.md        # v2 ADR
-│   │   └── 0022-software-factory.md                 # v2 ADR
+│   │   ├── 0022-software-factory.md                 # v2 ADR
+│   │   └── 0023-settings-store-provider-keys.md     # v2 ADR
 │   ├── agents/
 │   │   ├── domain.md                 # Domain glossary for agent context
 │   │   ├── issue-tracker.md          # Issue tracker conventions
@@ -106,13 +139,18 @@ orbitengine/
 │       └── 2026-08-20-vercel-browser-agent.md
 │
 ├── lib/                              # Server modules
-│   ├── ai.ts                         # OpenZen provider (createOpenAICompatible)
+│   ├── ai.ts                         # OpenAI-compatible provider setup (OpenZen)
 │   ├── api.ts                        # apiFetch helper (server-to-server with cookies)
+│   ├── browser.ts                    # agent-browser bootstrap + frame capture in sandbox
+│   ├── crypto.ts                     # AES-256-GCM encryption for provider keys
 │   ├── db.ts                         # Postgres pool (AUTH_DATABASE_URL || DATABASE_URL)
-│   ├── engine.ts                     # Engine tools (7) + SYSTEM_PROMPT
-│   ├── github.ts                     # GitHub App JWT, installation tokens, repo listing
+│   ├── engine.ts                     # Engine tools (14) + SYSTEM_PROMPT, mode gating
+│   ├── github.ts                     # GitHub App JWT, installation tokens, repo listing, install status
 │   ├── messages.ts                   # Message persistence (save/list/convert)
 │   ├── sandbox.ts                    # Sandbox lifecycle, file tree walk, file reader
+│   ├── settings.ts                   # User settings + provider key storage/retrieval
+│   ├── skills.ts                     # Skill CRUD + /skillname resolution for engine context
+│   ├── traces.ts                     # Trace store: startTraceRun/recordCompletedSpans/finishTraceRun/list
 │   └── utils.ts                      # cn() — Tailwind class merge utility
 │
 ├── media/                            # Screenshots
@@ -168,6 +206,15 @@ orbitengine/
 | GET | `/api/conversations/:id/monitor/tree` | `app/api/conversations/[id]/monitor/tree/route.ts` | Sandbox file tree |
 | GET | `/api/conversations/:id/monitor/file?path=` | `app/api/conversations/[id]/monitor/file/route.ts` | Read sandbox file |
 | POST | `/api/conversations/:id/monitor/command` | `app/api/conversations/[id]/monitor/command/route.ts` | Run command, SSE stream output |
+| GET | `/api/conversations/:id/browser/frame` | `app/api/conversations/[id]/browser/frame/route.ts` | Live browser frame (JPEG data URL) or `{idle}` |
+| POST | `/api/conversations/:id/browser/start` | `app/api/conversations/[id]/browser/start/route.ts` | Start a browser session on demand |
+| GET | `/api/conversations/:id/traces` | `app/api/conversations/[id]/traces/route.ts` | Trace runs + spans (ADR-0021) |
+| GET | `/api/github/installation-status` | `app/api/github/installation-status/route.ts` | GitHub App installed? + install URL |
+| GET | `/api/models/:provider` | `app/api/models/[provider]/route.ts` | Live model list for provider |
+| GET/PUT | `/api/settings` | `app/api/settings/route.ts` | User settings (default model/mode, loop) |
+| PUT/DELETE | `/api/settings/keys/:provider` | `app/api/settings/keys/[provider]/route.ts` | Encrypted provider API keys |
+| GET/POST | `/api/skills` | `app/api/skills/route.ts` | Skill library list/create |
+| GET/PATCH/DELETE | `/api/skills/:name` | `app/api/skills/[name]/route.ts` | Single skill CRUD (owner only) |
 
 ## lib/ Modules
 
@@ -180,6 +227,9 @@ orbitengine/
 | `github.ts` | GitHub App JWT creation, installation token exchange, repo listing |
 | `messages.ts` | Message persistence: `saveUserMessage`, `saveAssistantMessage`, `listConversationMessages`, `toUIMessage` |
 | `sandbox.ts` | Vercel Sandbox lifecycle: provision, destroy, get; file tree walk, file reader, sandbox naming |
+| `settings.ts` | User settings + encrypted provider key storage |
+| `skills.ts` | Skill CRUD + `/skillname` resolution for engine context |
+| `traces.ts` | Trace store writes/reads (startTraceRun, recordCompletedSpans, finishTraceRun, listConversationTraces) |
 | `utils.ts` | `cn()` — Tailwind class merge (clsx + twMerge) |
 
 ## UI Components
@@ -206,8 +256,13 @@ orbitengine/
 | `accounts` | id, userId (FK→users), provider, providerAccountId, tokens | OAuth provider links |
 | `sessions` | id, sessionToken, userId (FK→users), expires | Database-backed sessions |
 | `verification_token` | identifier, token, expires | OAuth state verification |
-| `conversations` | id (UUID PK), userId (FK→users), sandboxId, status, createdAt, updatedAt | `status`: `open` or `closed` |
-| `messages` | id (UUID PK), conversationId (FK→conversations), role, content, parts (JSONB), phase, createdAt | `phase` is nullable, currently unused |
+| `conversations` | id (UUID PK), userId (FK→users), sandboxId, status, provider, model, mode, createdAt, updatedAt | `status`: `open`/`closed`; `mode`: `plan`/`build` |
+| `messages` | id (UUID PK), conversationId (FK→conversations), role, content, parts (JSONB), phase, createdAt | Server-side per-step persistence (ADR-0020) |
+| `settings` | userId (PK, FK→users), data (JSONB) | Default model/mode, loop params |
+| `provider_keys` | userId + provider (composite PK), encryptedKey, keyHint | AES-256-GCM encrypted at rest |
+| `skills` | id (UUID PK), userId (FK→users), name, content (Markdown), declaredTools (JSONB) | Unique name per user |
+| `trace_runs` | id (TEXT PK), conversationId (FK→conversations, nullable), factoryRunId, provider, model, mode, skills, stepCount, totalMs, tokens, status, startedAt/finishedAt | One row per engine run (ADR-0021) |
+| `trace_spans` | id (TEXT PK), runId (FK→trace_runs CASCADE), seq, tool, phase, startedAt, durationMs, input/output (JSONB) | One row per completed tool step |
 
 ## Findings
 
@@ -226,16 +281,16 @@ But `db/schema.sql` has **no `attachedRepository` column** on the `conversations
 
 ### 2. `message-composer.tsx` is dead code
 
-`app/conversations/[id]/message-composer.tsx` exports `MessageComposer` but is **imported nowhere** in the app. It references a `PATCH /api/conversations/:id` endpoint that doesn't exist (only GET and DELETE are implemented). This is leftover from the earlier "attach repository" approach (issue #4) and was superseded by agent-driven cloning via `@owner/repo`.
+`app/conversations/[id]/message-composer.tsx` exports `MessageComposer` but is **imported nowhere** in the app. It references a `PATCH /api/conversations/:id` endpoint that now exists (GET/PATCH/DELETE are implemented), but the component itself remains unused — superseded by `composer.tsx`. Safe to delete.
 
 ### 3. `scripts/` is empty
 
 The `scripts/` directory exists at the repo root but contains no files.
 
-### 4. ADRs 0017–0022 are written but unimplemented
+### 4. ADRs 0017–0023: status
 
-Six v2 ADRs exist (`docs/adr/0017` through `0022`) covering model selection, skills, browser-in-sandbox, step persistence, traces, and factory — all specs written ahead of the v2 implementation. These correspond directly to features in `docs/v2.md`.
+v2 ADRs 0017–0021 are implemented (model selection, skills, browser-in-sandbox, step persistence, traces). 0022 (software factory) and the ops dashboard remain open as issues T11–T13; 0023 (settings store) is built.
 
-### 5. Persistence is client-driven only
+### 5. Persistence is server-side now
 
-Message persistence (`streaming-chat.tsx:310–328`) fires only on the client's `onFinish` callback. If the client disconnects mid-stream, the assistant message is lost. The `phase` column in `messages` is never written. This is the core bug v2's durable persistence (ADR-0020) is designed to fix.
+Message persistence moved server-side per ADR-0020 (T01): the engine loop writes each step durably. The earlier client-only `onFinish` gap is closed.

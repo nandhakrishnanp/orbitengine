@@ -91,6 +91,7 @@ All major decisions are captured in `docs/adr/`:
 | 0020 | Server-side engine-step persistence |
 | 0021 | Observability: trace store |
 | 0022 | Software factory |
+| 0023 | Settings store for provider keys & defaults |
 
 ## Data Model
 
@@ -141,6 +142,26 @@ skills
   content (Markdown)
   declaredTools (JSONB, default [])
   createdAt, updatedAt
+
+trace_runs (ADR-0021 observability trace store)
+  id (PK, TEXT UUID)
+  conversationId (FK→conversations, nullable — null when driven by a factory run)
+  factoryRunId (TEXT, nullable)
+  provider, model (TEXT NOT NULL)
+  mode (TEXT, nullable)
+  skills (JSONB, default [])
+  stepCount (INTEGER), totalMs (INTEGER)
+  inputTokens, outputTokens (BIGINT, nullable)
+  status (TEXT NOT NULL DEFAULT 'running')
+  startedAt, finishedAt
+
+trace_spans
+  id (PK, TEXT UUID)
+  runId (FK→trace_runs, ON DELETE CASCADE)
+  seq (INTEGER — span order within the run)
+  tool, phase (TEXT NOT NULL)
+  startedAt (TIMESTAMPTZ), durationMs (INTEGER)
+  input, output (JSONB, nullable)
 ```
 
 ### Entity Relationships
@@ -149,6 +170,7 @@ skills
 users 1──N conversations 1──N messages
 users 1──N accounts
 users 1──N sessions
+conversations 1──N trace_runs 1──N trace_spans
 ```
 
 ## API Routes
@@ -160,6 +182,7 @@ users 1──N sessions
 | PUT/DELETE | `/api/settings/keys/:provider` | Store/remove encrypted provider API keys | Required |
 | GET | `/api/models/:provider` | List models for a provider (model picker) | Required |
 | GET | `/api/repos` | List GitHub repos accessible to user (for @-mention autocomplete) | Required |
+| GET | `/api/github/installation-status` | Check if the GitHub App is installed on the user's account; returns install URL when missing | Required |
 | GET | `/api/skills` | List user's skills | Required |
 | POST | `/api/skills` | Create a skill (name + Markdown) | Required |
 | GET | `/api/skills/:name` | Fetch a skill by name | Required (owner) |
@@ -178,6 +201,7 @@ users 1──N sessions
 | POST | `/api/conversations/:id/monitor/command` | Run a command, SSE-stream output + exit code (5 min timeout) | Required (owner) |
 | GET | `/api/conversations/:id/browser/frame` | Capture live browser frame (JPEG data URL) or `{idle}` | Required (owner) |
 | POST | `/api/conversations/:id/browser/start` | Start a browser session on demand | Required (owner) |
+| GET | `/api/conversations/:id/traces` | List the conversation's trace runs with spans (ADR-0021) | Required (owner) |
 
 ## Working Modes
 
@@ -201,6 +225,20 @@ The engine drives [agent-browser](https://github.com/vercel-labs/agent-browser)
   verify / close; Build mode only
 - Live preview: `GET .../browser/frame` captures a JPEG each poll (~1.5s) for
   the standalone Browser page; session lifecycle = sandbox lifecycle
+
+## Observability: Trace Store
+
+Every engine run is recorded in a dedicated trace store (ADR-0021), written
+server-side by the same loop that persists messages — tracing never breaks the
+loop:
+
+- `trace_runs`: one row per engine run with context (provider, model, mode,
+  skills, step count, total time, token usage when reported) and status
+- `trace_spans`: one row per completed tool step — tool, phase, startedAt,
+  durationMs, input, output — ordered by `seq`, with cursor-based dedup so each
+  tool part is recorded at most once
+- `factoryRunId` column reserved for factory runs (T12) so they share the same
+  trace surface; the Traces page lives at `/conversations/[id]/traces`
 
 ## Sandbox Lifecycle
 
@@ -257,6 +295,9 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 | Conversation page | `app/conversations/[id]/page.tsx` | Server | Chat view: header, messages, composer, Browser + Monitor buttons |
 | Sandbox status | `app/conversations/[id]/sandbox-status.tsx` | Client | Auto-provision, status badge, close/reopen |
 | Streaming chat | `app/conversations/[id]/streaming-chat.tsx` | Client | Chat messages, @-mention repo picker, engine tool display (file/GitHub/browser cards) |
+| Composer | `app/conversations/[id]/composer.tsx` | Client | Prompt input extracted from streaming-chat: textarea, model/mode pickers, @-mention autocomplete, skill picker |
+| Engine tool cards | `app/conversations/[id]/engine-tool-call.tsx` | Client | Rendered engine tool calls (file/GitHub/browser cards) inside the message stream |
+| Traces page | `app/conversations/[id]/traces/page.tsx` + `trace-run-card.tsx` | Server/Client | Per-conversation trace timeline: colored spans by tool family (shell/files/browser/github, red = error) acting as filter, shiki-highlighted detail panel, run header (model, provider, tokens, duration) |
 | Mode picker | `app/conversations/[id]/mode-picker.tsx` | Client | Plan/Build switch in the prompt box footer (`⌘I`), persisted via PATCH |
 | Model picker | `app/conversations/[id]/model-picker.tsx` | Client | Per-conversation provider + model selection |
 | Monitor page | `app/conversations/[id]/monitor/page.tsx` | Server | Sandbox monitor: auth-gated, closed/provisioning states |
@@ -265,7 +306,8 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 | Browser view | `app/conversations/[id]/browser/browser-view.tsx` | Client | Idle → Starting → Live states; screenshot polling, pause/resume, URL strip |
 | Settings page | `app/settings/page.tsx` + `settings-client.tsx` | Server/Client | Provider API keys (encrypted at rest), default model & loop params |
 | Skills section | `app/settings/skills-section.tsx` | Client | Skill library CRUD: add, edit, delete Markdown skills invoked via `/skillname` |
-| Skill picker | in `streaming-chat.tsx` composer | Client | `/`-triggered dropdown with search; selected skills shown as chips and prepended to the sent message; Build mode applies them to the engine context |
+| Skill picker | in `composer.tsx` composer | Client | `/`-triggered dropdown with search; selected skills shown as chips and prepended to the sent message; Build mode applies them to the engine context |
+| Install banner | `components/github/install-banner.tsx` | Client | Amber banner shown when the GitHub App is not installed on the user's account; links to the install URL, re-checks on window focus, dismissible |
 
 ## What's Built vs. What's Next
 
@@ -279,16 +321,17 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 7. Agent-driven repo cloning (user types @owner/repo, agent clones via system prompt)
 8. GitHub write tools (create_pull_request, create_issue, create_repository)
 9. UI shell (landing page, conversations layout, sidebar, chat view, @-mention autocomplete)
-10. Database schema (7 tables, indexes)
-11. Architecture documentation (22 ADRs, domain glossary)
+10. Database schema (11 tables, indexes)
+11. Architecture documentation (23 ADRs, domain glossary)
 12. Sandbox monitor (file tree, file viewer with image previews, command runner)
 13. Durable engine-step persistence (ADR-0020)
 14. Per-conversation model selection with encrypted provider keys (ADR-0017, T02/T04)
 15. Plan/Build working modes with tool gating (T03)
 16. Live browser capability via agent-browser + standalone browser preview (T05)
 17. User-managed skills: skills table, Settings CRUD, `/skillname` invocation injecting skill Markdown into the engine context in Build mode (T07)
+18. Observability trace store + per-conversation Traces view: trace_runs/trace_spans written server-side by the engine loop (never breaks it), colored timeline with shiki-highlighted span details (T10)
+19. GitHub App install banner: installation-status API + dismissible InstallBanner prompting install after sign-in
 
 ### Not Yet Built (see docs/v2.md and the issue tracker)
-- Create skill from conversation (T08), skill browser-tool bundling (T09)
-- Observability trace store + live traces view (T10)
+- Skill browser-tool bundling (T09), GitHub connect/disconnect in Settings (T06)
 - Software factory: config/run engine (T11/T12) and ops dashboard (T13)
