@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { GlobeIcon, MessageSquare, MonitorIcon } from "lucide-react";
+import { GlobeIcon, MessageSquare, MonitorIcon, Activity } from "lucide-react";
 import type { UIMessage } from "ai";
 import { apiFetch } from "@/lib/api";
 import SandboxStatus from "./sandbox-status";
@@ -89,6 +89,15 @@ export default async function ConversationPage({
             </Link>
           </>
         )}
+        <Link
+          href={`/conversations/${conversation.id}/traces`}
+          className={`flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900 ${
+            conversation.sandboxId ? "" : "ml-auto"
+          }`}
+        >
+          <Activity className="size-4" />
+          Traces
+        </Link>
       </header>
 
       <StreamingChat

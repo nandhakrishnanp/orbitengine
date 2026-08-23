@@ -32,6 +32,11 @@ import {
 } from "@/lib/settings";
 import { resolveSkillsForMessage, skillsPromptSection } from "@/lib/skills";
 import { getInstallationTokenForUser } from "@/lib/github";
+import {
+  startTraceRun,
+  recordCompletedSpans,
+  finishTraceRun,
+} from "@/lib/traces";
 
 const DEFAULT_PROVIDER: Provider = "opencode-go";
 const DEFAULT_MODEL = "hy3-free";
@@ -52,6 +57,8 @@ async function resolveModel(
   if (storedKey) {
     return {
       model: createProviderModel(provider, modelId, storedKey),
+      providerId: provider,
+      modelId,
       loop: settings.loop,
       mode: settings.mode,
       source: "user-key" as const,
@@ -61,6 +68,8 @@ async function resolveModel(
   if (process.env.OPENZEN_API_KEY && provider === DEFAULT_PROVIDER) {
     return {
       model: createProviderModel(provider, modelId, process.env.OPENZEN_API_KEY),
+      providerId: provider,
+      modelId,
       loop: settings.loop,
       mode: settings.mode,
       source: "platform-key" as const,
@@ -167,6 +176,7 @@ export async function POST(
   console.log("[engine] mode:", mode, "tools:", Object.keys(tools));
 
   let system = SYSTEM_PROMPT;
+  let skillNames: string[] = [];
   if (mode === "plan") {
     system += `\n\n${PLAN_MODE_PROMPT}`;
   } else {
@@ -183,6 +193,7 @@ export async function POST(
       : null;
     const skills = await resolveSkillsForMessage(userId, latestUserText);
     if (skills.length > 0) {
+      skillNames = skills.map((s) => s.name);
       system += skillsPromptSection(skills);
       console.log(
         "[engine] skills invoked:",
@@ -190,6 +201,32 @@ export async function POST(
       );
     }
   }
+
+  // Trace run (ADR-0021). Written by the same loop as durable persistence;
+  // every recorder call swallows its own errors so tracing never breaks the
+  // engine loop.
+  const traceRunId = await startTraceRun({
+    conversationId: id,
+    provider: resolved.providerId,
+    model: resolved.modelId,
+    mode,
+    skills: skillNames,
+  });
+  const traceStartMs = Date.now();
+  let traceStepStartMs = traceStartMs;
+  let traceStepCount = 0;
+  const seenToolParts = new Set<number>();
+  const captureTraceSpans = async (message: UIMessage) => {
+    if (!traceRunId) return;
+    const now = Date.now();
+    traceStepCount += await recordCompletedSpans(
+      traceRunId,
+      message.parts,
+      seenToolParts,
+      { startedAt: new Date(traceStepStartMs), durationMs: now - traceStepStartMs }
+    );
+    traceStepStartMs = now;
+  };
 
   const result = streamText({
     model: resolved.model,
@@ -244,9 +281,29 @@ export async function POST(
     },
     onStepEnd: async ({ responseMessage }) => {
       await persistResponseMessage(responseMessage);
+      await captureTraceSpans(responseMessage);
     },
     onEnd: async ({ responseMessage }) => {
       await persistResponseMessage(responseMessage);
+      if (traceRunId) {
+        await captureTraceSpans(responseMessage);
+        let inputTokens: number | null = null;
+        let outputTokens: number | null = null;
+        try {
+          const usage = await result.usage;
+          inputTokens = usage.inputTokens ?? null;
+          outputTokens = usage.outputTokens ?? null;
+        } catch {
+          // Token usage is best-effort; some providers don't report it.
+        }
+        await finishTraceRun(traceRunId, {
+          stepCount: traceStepCount,
+          totalMs: Date.now() - traceStartMs,
+          status: "completed",
+          inputTokens,
+          outputTokens,
+        });
+      }
     },
   });
 

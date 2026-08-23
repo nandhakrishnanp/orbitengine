@@ -92,3 +92,38 @@ CREATE TABLE IF NOT EXISTS skills (
 CREATE INDEX IF NOT EXISTS conversations_user_idx ON conversations ("userId");
 CREATE INDEX IF NOT EXISTS messages_conversation_idx ON messages ("conversationId");
 CREATE INDEX IF NOT EXISTS skills_user_idx ON skills ("userId");
+
+-- Trace store (ADR-0021). Dedicated store for engine activity so timing
+-- and context data do not bloat chat message parts.
+CREATE TABLE IF NOT EXISTS trace_runs (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  "conversationId" TEXT REFERENCES conversations(id) ON DELETE CASCADE,
+  "factoryRunId" TEXT,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  mode TEXT,
+  skills JSONB NOT NULL DEFAULT '[]',
+  "stepCount" INTEGER NOT NULL DEFAULT 0,
+  "totalMs" INTEGER,
+  "inputTokens" BIGINT,
+  "outputTokens" BIGINT,
+  status TEXT NOT NULL DEFAULT 'running',
+  "startedAt" TIMESTAMPTZ NOT NULL DEFAULT now(),
+  "finishedAt" TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS trace_spans (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  "runId" TEXT NOT NULL REFERENCES trace_runs(id) ON DELETE CASCADE,
+  seq INTEGER NOT NULL,
+  tool TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  "startedAt" TIMESTAMPTZ NOT NULL,
+  "durationMs" INTEGER NOT NULL DEFAULT 0,
+  input JSONB,
+  output JSONB,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS trace_runs_conversation_idx ON trace_runs ("conversationId", "startedAt" DESC);
+CREATE INDEX IF NOT EXISTS trace_spans_run_idx ON trace_spans ("runId", seq);
