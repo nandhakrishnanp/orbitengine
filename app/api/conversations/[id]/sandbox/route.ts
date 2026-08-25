@@ -15,7 +15,7 @@ export async function POST(
   const { id } = await params;
 
   const ownership = await pool.query(
-    `SELECT id, status, "sandboxId"
+    `SELECT id, status, "sandboxId", "snapshotId"
      FROM conversations WHERE id = $1 AND "userId" = $2`,
     [id, session.user.id]
   );
@@ -25,7 +25,9 @@ export async function POST(
 
   const conversation = ownership.rows[0];
 
-  // Reopening a closed conversation spawns a fresh sandbox (ADR-0001).
+  // Reopening a closed conversation restores the workspace from the snapshot
+  // captured at close time (ADR-0016). The sandbox handle itself is cleared;
+  // the snapshot ID is kept until the next close replaces it.
   if (conversation.status === "closed") {
     await pool.query(
       `UPDATE conversations SET status = 'open', "sandboxId" = NULL, "updatedAt" = now()
@@ -44,6 +46,7 @@ export async function POST(
   const sandboxId = await provisionSandbox({
     conversationId: id,
     userId: session.user.id,
+    snapshotId: conversation.snapshotId,
   });
 
   const { rows } = await pool.query(

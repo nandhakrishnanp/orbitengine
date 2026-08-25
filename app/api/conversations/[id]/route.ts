@@ -4,13 +4,14 @@ import { auth } from "@/auth";
 import { pool } from "@/lib/db";
 import { listConversationMessages } from "@/lib/messages";
 import { PROVIDERS, MODES } from "@/lib/settings";
-import { destroySandbox } from "@/lib/sandbox";
+import { destroySandbox, destroySnapshot, closeConversationSandbox } from "@/lib/sandbox";
 
 const patchSchema = z
   .object({
     provider: z.enum(PROVIDERS).nullable().optional(),
     model: z.string().min(1).nullable().optional(),
     mode: z.enum(MODES).optional(),
+    status: z.enum(["closed"]).optional(),
   })
   .strict();
 
@@ -75,6 +76,30 @@ export async function PATCH(
     values.push(parsed.data.mode);
     sets.push(`mode = $${values.length}`);
   }
+
+  // Closing snapshots the sandbox filesystem so a later reopen can restore
+  // the workspace (ADR-0016). The new snapshot replaces any previous one,
+  // which is destroyed so it does not linger orphaned in Vercel.
+  let previousSnapshotId: string | null = null;
+  if (parsed.data.status === "closed") {
+    const current = await pool.query(
+      `SELECT "snapshotId" FROM conversations WHERE id = $1 AND "userId" = $2`,
+      [id, session.user.id]
+    );
+    previousSnapshotId = current.rows[0]?.snapshotId ?? null;
+    const newSnapshotId = await closeConversationSandbox(id);
+    sets.push(`status = 'closed'`);
+    values.push(newSnapshotId);
+    sets.push(`"snapshotId" = COALESCE($${values.length}, "snapshotId")`);
+    if (
+      newSnapshotId &&
+      previousSnapshotId &&
+      previousSnapshotId !== newSnapshotId
+    ) {
+      await destroySnapshot(previousSnapshotId);
+    }
+  }
+
   if (sets.length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
@@ -104,18 +129,24 @@ export async function DELETE(
   const { id } = await params;
 
   const ownership = await pool.query(
-    `SELECT id, "sandboxId" FROM conversations WHERE id = $1 AND "userId" = $2`,
+    `SELECT id, "sandboxId", "snapshotId" FROM conversations WHERE id = $1 AND "userId" = $2`,
     [id, session.user.id]
   );
   if (ownership.rowCount === 0) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const sandboxId = ownership.rows[0].sandboxId;
+  const { sandboxId, snapshotId } = ownership.rows[0];
+  console.log(
+    `[conversations] DELETE id=${id} dbSandboxId=${sandboxId ?? "null"} dbSnapshotId=${snapshotId ?? "null"}`
+  );
 
-  // Destroy the sandbox, then permanently delete the conversation and its
-  // messages (cascaded via the foreign key).
+  // Destroy the sandbox and any stored snapshot, then permanently delete the
+  // conversation and its messages (cascaded via the foreign key).
   await destroySandbox(id);
+  if (snapshotId) {
+    await destroySnapshot(snapshotId);
+  }
 
   await pool.query(
     `DELETE FROM conversations WHERE id = $1 AND "userId" = $2`,
