@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS messages (
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS provider TEXT;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS model TEXT;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'build';
+-- Snapshot of the sandbox filesystem taken when the conversation is closed,
+-- used to restore workspace state on reopen (see ADR-0016).
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS "snapshotId" TEXT;
 
 CREATE TABLE IF NOT EXISTS settings (
   "userId" TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

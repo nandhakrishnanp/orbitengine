@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCcw, X } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 
 export default function SandboxStatus({
   conversationId,
@@ -37,34 +37,27 @@ export default function SandboxStatus({
 
   const provisioning = status === "open" && !sandboxId && !error;
 
-  const label = status === "closed"
-    ? "Closed"
-    : provisioning
-      ? "Provisioning…"
-      : "Sandbox ready";
+  const label =
+    status === "closed"
+      ? "Sandbox closed"
+      : provisioning
+        ? "Provisioning…"
+        : "Sandbox live";
 
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex items-center gap-1.5">
       <span
-        className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium ${
+        title={label}
+        className={`h-2 w-2 rounded-full ${
           status === "closed"
-            ? "border-zinc-300 text-zinc-500 dark:border-zinc-700"
-            : "border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400"
+            ? "bg-zinc-400 dark:bg-zinc-600"
+            : provisioning
+              ? "animate-pulse bg-amber-400"
+              : "bg-emerald-500"
         }`}
-      >
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${
-            status === "closed"
-              ? "bg-zinc-400"
-              : provisioning
-                ? "animate-pulse bg-amber-400"
-                : "bg-emerald-500"
-          }`}
-        />
-        {label}
-      </span>
+      />
 
-      {status === "closed" ? (
+      {status === "closed" && (
         <button
           onClick={async () => {
             setBusy(true);
@@ -75,26 +68,11 @@ export default function SandboxStatus({
             setBusy(false);
             if (res.ok) router.refresh();
           }}
-          className="flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
-        >
-          <RotateCcw className="size-3.5" />
-          Reopen
-        </button>
-      ) : (
-        <button
-          onClick={async () => {
-            setBusy(true);
-            const res = await fetch(`/api/conversations/${conversationId}`, {
-              method: "DELETE",
-            });
-            setBusy(false);
-            if (res.ok) router.refresh();
-          }}
           disabled={busy}
-          className="flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1 font-medium transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-900"
+          title="Reopen sandbox"
+          className="rounded p-0.5 text-zinc-400 transition-colors hover:text-zinc-600 disabled:opacity-50 dark:hover:text-zinc-300"
         >
-          <X className="size-3.5" />
-          Close
+          <RotateCcw className="size-3" />
         </button>
       )}
 
