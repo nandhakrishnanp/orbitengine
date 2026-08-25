@@ -160,3 +160,132 @@ export async function listAccessibleRepos(userId: string): Promise<GitHubRepo[]>
     }))
     .sort((a, b) => a.fullName.localeCompare(b.fullName));
 }
+
+export type GitHubIssueRef = {
+  number: number;
+  title: string;
+  htmlUrl: string;
+  labels: string[];
+  body: string | null;
+};
+
+// Open, non-PR issues on a repo, newest first (poll input for factories).
+export async function listOpenIssues(
+  token: string,
+  repoFullName: string
+): Promise<GitHubIssueRef[]> {
+  const issues = await githubRequest<
+    Array<{
+      number: number;
+      title: string;
+      html_url: string;
+      labels: Array<{ name?: string }>;
+      body: string | null;
+      pull_request?: unknown;
+    }>
+  >(
+    `/repos/${repoFullName}/issues?state=open&per_page=100&sort=created&direction=desc`,
+    token
+  );
+
+  return issues
+    .filter((i) => !i.pull_request)
+    .map((i) => ({
+      number: i.number,
+      title: i.title,
+      htmlUrl: i.html_url,
+      labels: i.labels.map((l) => l.name ?? "").filter(Boolean),
+      body: i.body,
+    }));
+}
+
+export async function createIssueComment(
+  token: string,
+  repoFullName: string,
+  issueNumber: number,
+  body: string
+): Promise<{ url: string }> {
+  const comment = await githubRequest<{ html_url: string }>(
+    `/repos/${repoFullName}/issues/${issueNumber}/comments`,
+    token,
+    { method: "POST", body: JSON.stringify({ body }) }
+  );
+  return { url: comment.html_url };
+}
+
+export async function listIssueComments(
+  token: string,
+  repoFullName: string,
+  issueNumber: number
+): Promise<Array<{ id: number; body: string }>> {
+  const comments = await githubRequest<
+    Array<{ id: number; body: string }>
+  >(
+    `/repos/${repoFullName}/issues/${issueNumber}/comments?per_page=100`,
+    token
+  );
+  return comments.map((c) => ({ id: c.id, body: c.body }));
+}
+
+// Open PRs whose head branch starts with `factory/issue-` — used to skip
+// issues that already have an open factory PR.
+export async function listOpenFactoryPullRequests(
+  token: string,
+  repoFullName: string
+): Promise<Map<number, { prNumber: number; prUrl: string; branch: string }>> {
+  const pulls = await githubRequest<
+    Array<{
+      number: number;
+      html_url: string;
+      head: { ref: string };
+    }>
+  >(`/repos/${repoFullName}/pulls?state=open&per_page=100`, token);
+
+  const byIssue = new Map<
+    number,
+    { prNumber: number; prUrl: string; branch: string }
+  >();
+  for (const pr of pulls) {
+    const match = /^factory\/issue-(\d+)-/.exec(pr.head.ref);
+    if (match) {
+      byIssue.set(Number(match[1]), {
+        prNumber: pr.number,
+        prUrl: pr.html_url,
+        branch: pr.head.ref,
+      });
+    }
+  }
+  return byIssue;
+}
+
+export async function getRepoDefaultBranch(
+  token: string,
+  repoFullName: string
+): Promise<string> {
+  const repo = await githubRequest<{ default_branch: string }>(
+    `/repos/${repoFullName}`,
+    token
+  );
+  return repo.default_branch || "main";
+}
+
+export async function createPullRequest(
+  token: string,
+  repoFullName: string,
+  input: { title: string; head: string; base: string; body: string }
+): Promise<{ number: number; url: string }> {
+  const pr = await githubRequest<{ number: number; html_url: string }>(
+    `/repos/${repoFullName}/pulls`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        title: input.title,
+        head: input.head,
+        base: input.base,
+        body: input.body,
+      }),
+    }
+  );
+  return { number: pr.number, url: pr.html_url };
+}

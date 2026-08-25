@@ -92,6 +92,7 @@ All major decisions are captured in `docs/adr/`:
 | 0021 | Observability: trace store |
 | 0022 | Software factory |
 | 0023 | Settings store for provider keys & defaults |
+| 0024 | Factory runs are a step graph, not one engine loop |
 
 ## Data Model
 
@@ -147,6 +148,31 @@ trace_runs (ADR-0021 observability trace store)
   id (PK, TEXT UUID)
   conversationId (FK→conversations, nullable — null when driven by a factory run)
   factoryRunId (TEXT, nullable)
+
+factories (ADR-0022 software factory)
+  id (PK, UUID)
+  userId (FK→users)
+  repoFullName (TEXT, UNIQUE per user)
+  labelFilter (JSONB — include-list of issue labels)
+  provider, model (nullable — run defaults)
+  mode (TEXT default 'build')
+  checkCommand (TEXT, nullable — overrides auto-detection)
+  status ('active' | 'paused')
+
+factory_runs (one per factory+issue; Postgres is the queue)
+  id (PK, UUID)
+  factoryId (FK→factories, CASCADE)
+  issueNumber, issueTitle, issueUrl
+  type ('bug' | 'feature' | 'docs', set by identify_type)
+  state (queued → classifying → reproducing → fixing → pr_opened | failed | cancelled)
+  branch (factory/issue-N-slug), prNumber, prUrl, error
+  sandboxId, traceRunId, variant (reserved for matrix runs)
+
+factory_run_steps (ADR-0024 — the persisted step graph)
+  id (PK), runId (FK→factory_runs, CASCADE), seq
+  step (identify_type | reproduce | create_fix | review_fix | implement_docs | open_pr)
+  status (pending | running | passed | failed | skipped)
+  verdict (JSONB — structured step output), attempts
   provider, model (TEXT NOT NULL)
   mode (TEXT, nullable)
   skills (JSONB, default [])
@@ -202,6 +228,12 @@ conversations 1──N trace_runs 1──N trace_spans
 | GET | `/api/conversations/:id/browser/frame` | Capture live browser frame (JPEG data URL) or `{idle}` | Required (owner) |
 | POST | `/api/conversations/:id/browser/start` | Start a browser session on demand | Required (owner) |
 | GET | `/api/conversations/:id/traces` | List the conversation's trace runs with spans (ADR-0021) | Required (owner) |
+| GET/POST | `/api/factories` | List / create factories (repo must be in the GitHub App installation) | Required |
+| GET/PATCH/DELETE | `/api/factories/:id` | Factory detail / edit+pause / delete | Required (owner) |
+| GET | `/api/factories/:id/runs` | Factory runs with their step graphs | Required (owner) |
+| POST | `/api/factories/:id/runs/:runId/rerun` | Re-run a failed run (resets to queued) | Required (owner) |
+| POST | `/api/factories/:id/runs/:runId/cancel` | Cancel a queued run | Required (owner) |
+| GET | `/api/cron/factory-poll` | Vercel Cron entry point → `pollOnce()` (guarded by `CRON_SECRET`) | CRON_SECRET |
 
 ## Working Modes
 
@@ -308,6 +340,7 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 | Skills section | `app/settings/skills-section.tsx` | Client | Skill library CRUD: add, edit, delete Markdown skills invoked via `/skillname` |
 | Skill picker | in `composer.tsx` composer | Client | `/`-triggered dropdown with search; selected skills shown as chips and prepended to the sent message; Build mode applies them to the engine context |
 | Install banner | `components/github/install-banner.tsx` | Client | Amber banner shown when the GitHub App is not installed on the user's account; links to the install URL, re-checks on window focus, dismissible |
+| Factory dashboard | `app/factory/page.tsx` + `factory-dashboard.tsx` | Server/Client | Ops surface (T13): run rail grouped by factory with live state badges, detail pane with pipeline stage table + verdict JSON, Open PR / Re-run / Cancel actions, trace view, inline factory creation form; auto-refreshes while runs are in flight |
 
 ## What's Built vs. What's Next
 
@@ -331,7 +364,11 @@ Open conversation ──► Provision sandbox (Vercel Sandbox SDK)
 17. User-managed skills: skills table, Settings CRUD, `/skillname` invocation injecting skill Markdown into the engine context in Build mode (T07)
 18. Observability trace store + per-conversation Traces view: trace_runs/trace_spans written server-side by the engine loop (never breaks it), colored timeline with shiki-highlighted span details (T10)
 19. GitHub App install banner: installation-status API + dismissible InstallBanner prompting install after sign-in
+20. Sandbox snapshot lifecycle: close snapshots the workspace, reopen restores from the snapshot, delete tears down sandbox + all snapshots (ADR-0016)
+21. Software factory foundation (T11): factories/factory_runs/factory_run_steps schema, CRUD API, polled issue discovery (worker + Vercel Cron entry point), `npm run worker`
+22. Factory run engine (T12): step-graph executor (ADR-0024) — classify → bug pipeline (reproduce → fix ⇄ review, capped) → PR; docs pipeline (implement_docs → PR); failure comments (once, marker-guarded); shared `factory-shared` sandbox with per-run workspaces; orphaned-run recovery; trace spans per step
+23. Factory ops dashboard (T13): `/factory` — run rail, pipeline stage table, re-run/cancel, Open PR, trace timeline reuse
 
 ### Not Yet Built (see docs/v2.md and the issue tracker)
 - Skill browser-tool bundling (T09), GitHub connect/disconnect in Settings (T06)
-- Software factory: config/run engine (T11/T12) and ops dashboard (T13)
+- Software factory feature pipeline (`analyze → implement ⇄ review`) — designed in `docs/factory.md`

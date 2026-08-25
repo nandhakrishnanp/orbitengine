@@ -32,51 +32,12 @@ import {
 } from "@/lib/settings";
 import { resolveSkillsForMessage, skillsPromptSection } from "@/lib/skills";
 import { getInstallationTokenForUser } from "@/lib/github";
+import { resolveModel } from "@/lib/model-resolver";
 import {
   startTraceRun,
   recordCompletedSpans,
   finishTraceRun,
 } from "@/lib/traces";
-
-const DEFAULT_PROVIDER: Provider = "opencode-go";
-const DEFAULT_MODEL = "hy3-free";
-
-async function resolveModel(
-  userId: string,
-  conversation: { provider: string | null; model: string | null }
-) {
-  const settings = await getSettings(userId);
-  const provider =
-    (conversation.provider as Provider | null) ??
-    settings.model?.provider ??
-    DEFAULT_PROVIDER;
-  const modelId =
-    conversation.model ?? settings.model?.id ?? DEFAULT_MODEL;
-
-  const storedKey = await getProviderKey(userId, provider);
-  if (storedKey) {
-    return {
-      model: createProviderModel(provider, modelId, storedKey),
-      providerId: provider,
-      modelId,
-      loop: settings.loop,
-      mode: settings.mode,
-      source: "user-key" as const,
-    };
-  }
-  // Fall back to the platform key (opencode-go only).
-  if (process.env.OPENZEN_API_KEY && provider === DEFAULT_PROVIDER) {
-    return {
-      model: createProviderModel(provider, modelId, process.env.OPENZEN_API_KEY),
-      providerId: provider,
-      modelId,
-      loop: settings.loop,
-      mode: settings.mode,
-      source: "platform-key" as const,
-    };
-  }
-  return null;
-}
 
 const PLAN_TOOLS = ["read_file", "list_files"] as const;
 

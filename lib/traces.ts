@@ -37,7 +37,8 @@ export type TraceSpan = {
 };
 
 export async function startTraceRun(run: {
-  conversationId: string;
+  conversationId: string | null;
+  factoryRunId?: string | null;
   provider: string;
   model: string;
   mode: string | null;
@@ -45,11 +46,12 @@ export async function startTraceRun(run: {
 }): Promise<string | null> {
   try {
     const { rows } = await pool.query(
-      `INSERT INTO trace_runs ("conversationId", provider, model, mode, skills)
-       VALUES ($1, $2, $3, $4, $5::jsonb)
+      `INSERT INTO trace_runs ("conversationId", "factoryRunId", provider, model, mode, skills)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
        RETURNING id`,
       [
         run.conversationId,
+        run.factoryRunId ?? null,
         run.provider,
         run.model,
         run.mode,
@@ -161,6 +163,40 @@ export async function listConversationTraces(
      WHERE "conversationId" = $1 AND "factoryRunId" IS NULL
      ORDER BY "startedAt" DESC`,
     [conversationId]
+  );
+  if (runsResult.rowCount === 0) return [];
+
+  const runIds = runsResult.rows.map((r) => r.id);
+  const spansResult = await pool.query(
+    `SELECT id, "runId", seq, tool, phase, "startedAt", "durationMs", input, output
+     FROM trace_spans
+     WHERE "runId" = ANY($1)
+     ORDER BY seq`,
+    [runIds]
+  );
+
+  return runsResult.rows.map((r) => ({
+    ...r,
+    skills: Array.isArray(r.skills) ? r.skills.map(String) : [],
+    spans: spansResult.rows.filter((s) => s.runId === r.id),
+  }));
+}
+
+// Factory-side traces: every engine run driven by one of the user's factories.
+export async function listFactoryTraces(
+  userId: string
+): Promise<(TraceRun & { spans: TraceSpan[] })[]> {
+  const runsResult = await pool.query(
+    `SELECT t.id, t."conversationId", t."factoryRunId", t.provider, t.model,
+            t.mode, t.skills, t."stepCount", t."totalMs", t."inputTokens",
+            t."outputTokens", t.status, t."startedAt", t."finishedAt"
+     FROM trace_runs t
+     JOIN factory_runs r ON r.id = t."factoryRunId"
+     JOIN factories f ON f.id = r."factoryId"
+     WHERE f."userId" = $1 AND t."factoryRunId" IS NOT NULL
+     ORDER BY t."startedAt" DESC
+     LIMIT 100`,
+    [userId]
   );
   if (runsResult.rowCount === 0) return [];
 

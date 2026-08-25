@@ -262,7 +262,23 @@ export async function closeConversationSandbox(
 }
 
 export async function destroySandbox(conversationId: string): Promise<void> {
-  const name = sandboxName(conversationId);
+  await destroySandboxByName(sandboxName(conversationId));
+}
+
+export async function destroySnapshot(snapshotId: string): Promise<void> {
+  try {
+    const snapshot = await Snapshot.get({ snapshotId });
+    await snapshot.delete();
+    console.log(`[sandbox] snapshot deleted ${snapshotId}`);
+  } catch (err) {
+    console.error(
+      `[sandbox] snapshot delete FAILED ${snapshotId}:`,
+      err instanceof Error ? err.message : err
+    );
+  }
+}
+
+async function destroySandboxByName(name: string): Promise<void> {
   let sandbox: Sandbox;
   try {
     sandbox = await Sandbox.get({ name });
@@ -274,11 +290,6 @@ export async function destroySandbox(conversationId: string): Promise<void> {
     return;
   }
   try {
-    // Snapshots outlive their sandbox, so each one must be deleted
-    // explicitly or it stays around (and billed) after the sandbox is gone.
-    // Listed BEFORE the sandbox is deleted; afterwards they are unreachable
-    // through this handle. Listing must not abort the sandbox deletion
-    // itself, so failures here are logged and swallowed.
     const ids: string[] = [];
     try {
       const snapshots = await sandbox.listSnapshots();
@@ -294,7 +305,7 @@ export async function destroySandbox(conversationId: string): Promise<void> {
       );
     }
     console.log(
-      `[sandbox] destroy conversation=${conversationId} name=${name} snapshotsDeleted=[${ids.join(", ")}]`
+      `[sandbox] destroy name=${name} snapshotsDeleted=[${ids.join(", ")}]`
     );
     await sandbox.delete();
     console.log(`[sandbox] destroyed name=${name}`);
@@ -306,15 +317,26 @@ export async function destroySandbox(conversationId: string): Promise<void> {
   }
 }
 
-export async function destroySnapshot(snapshotId: string): Promise<void> {
-  try {
-    const snapshot = await Snapshot.get({ snapshotId });
-    await snapshot.delete();
-    console.log(`[sandbox] snapshot deleted ${snapshotId}`);
-  } catch (err) {
-    console.error(
-      `[sandbox] snapshot delete FAILED ${snapshotId}:`,
-      err instanceof Error ? err.message : err
-    );
-  }
+// Free-tier Vercel accounts allow only one live sandbox at a time, so factory
+// runs share ONE sandbox (sequential queue makes this safe) instead of one
+// per run. Each run works in a wiped subdirectory; the sandbox stays warm.
+export const FACTORY_SANDBOX_NAME = "factory-shared";
+
+export async function provisionFactorySandbox(
+  userId: string
+): Promise<string> {
+  const token = await getInstallationTokenForUser(userId);
+  const sandbox = await Sandbox.getOrCreate({
+    name: FACTORY_SANDBOX_NAME,
+    persistent: true,
+    env: {
+      GITHUB_TOKEN: token,
+    },
+  });
+  console.log(`[sandbox] factory sandbox ready name=${sandbox.name}`);
+  return sandbox.name;
+}
+
+export async function destroyFactorySandbox(): Promise<void> {
+  await destroySandboxByName(FACTORY_SANDBOX_NAME);
 }

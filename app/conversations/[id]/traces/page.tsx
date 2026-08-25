@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Activity, ArrowLeft } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import TraceRunCard, { type TraceRunWithSpans } from "./trace-run-card";
+import TraceRunCard, { type TraceRunWithSpans } from "@/components/traces/trace-run-card";
 
 export default async function TracesPage({
   params,

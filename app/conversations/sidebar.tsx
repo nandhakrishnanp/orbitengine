@@ -3,7 +3,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { LogOut, MessageSquare, Orbit, Plus, Settings, Trash2 } from "lucide-react";
+import {
+  Factory,
+  LogOut,
+  MessageSquare,
+  Orbit,
+  Plus,
+  Settings,
+  Trash2,
+} from "lucide-react";
 
 type User = {
   name?: string | null;
@@ -155,6 +163,13 @@ export default function Sidebar({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Link
+            href="/factory"
+            title="Factory"
+            className="rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-200/60 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <Factory className="size-4" />
+          </Link>
           <Link
             href="/settings"
             title="Settings"
