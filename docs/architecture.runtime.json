@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "OrbitEngine — Runtime Architecture",
+    "subtitle": "Cloud-side engine with interactive chat and autonomous factory pipelines",
+    "quality_profile": "showcase",
+    "viewBox": [1150, 560],
+    "views": [
+      { "id": "chat", "label": "Chat pipeline", "focus": ["client", "server", "engine", "sandbox", "github"], "note": "User sends a message → engine plans → sandbox executes → GitHub receives changes." },
+      { "id": "factory", "label": "Factory pipeline", "focus": ["worker", "engine", "sandbox", "github"], "note": "Worker polls issues → claims run → step-graph (classify → reproduce → fix ⇄ review → PR)." },
+      { "id": "trust", "label": "Trust boundaries", "focus": ["client", "server", "auth", "sandbox", "github"], "note": "HTTPS client↔server, Firecracker VM isolation, scoped installation tokens." }
+    ]
+  },
+  "components": [
+    { "id": "client", "type": "frontend", "label": "Client", "sublabel": "Next.js App Router", "tag": "Thin chat + status surface", "pos": [60, 260], "size": [140, 64] },
+    { "id": "server", "type": "backend", "label": "Server", "sublabel": "Next.js API Routes", "tag": "Auth · Conversations · Engine", "pos": [280, 260], "size": [150, 64] },
+    { "id": "auth", "type": "security", "label": "Auth.js", "sublabel": "GitHub OAuth", "tag": "DB-backed sessions", "pos": [280, 90], "size": [130, 56] },
+    { "id": "engine", "type": "backend", "label": "Engine Runtime", "sublabel": "Vercel AI SDK", "tag": "Tool-calling loop · streaming", "pos": [510, 260], "size": [140, 64] },
+    { "id": "sandbox", "type": "cloud", "label": "Sandbox", "sublabel": "Firecracker microVM", "tag": "One per conversation / factory", "pos": [740, 260], "size": [140, 64] },
+    { "id": "browser", "type": "cloud", "label": "Browser", "sublabel": "agent-browser", "tag": "Headless Chrome in sandbox", "pos": [740, 400], "size": [130, 56] },
+    { "id": "github", "type": "external", "label": "GitHub", "sublabel": "App API + OAuth", "tag": "Repos · PRs · Issues", "pos": [970, 260], "size": [130, 64] },
+    { "id": "postgres", "type": "database", "label": "PostgreSQL", "sublabel": "State + queue", "tag": "Sessions · Runs · Traces", "pos": [510, 90], "size": [140, 64] },
+    { "id": "providers", "type": "external", "label": "AI Providers", "sublabel": "OpenAI-compatible", "tag": "OpenZen · OpenAI · Anthropic", "pos": [510, 400], "size": [140, 56] },
+    { "id": "worker", "type": "backend", "label": "Worker", "sublabel": "Node process", "tag": "Poll · Claim · Advance", "pos": [970, 90], "size": [130, 56] },
+    { "id": "traces", "type": "database", "label": "Trace Store", "sublabel": "trace_runs · trace_spans", "tag": "Per-step observability", "pos": [740, 90], "size": [130, 56] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Vercel Platform", "wraps": ["server", "engine", "postgres", "traces"] },
+    { "kind": "security-group", "label": "Client ↔ Server (HTTPS + Auth.js)", "wraps": ["client", "server", "auth"] },
+    { "kind": "security-group", "label": "Sandbox Isolation (Firecracker VM)", "wraps": ["sandbox", "browser"] }
+  ],
+  "connections": [
+    { "id": "c-user", "from": "client", "to": "server", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "c-auth", "from": "auth", "to": "server", "label": "session verify", "variant": "security", "fromSide": "bottom", "toSide": "top", "labelAt": [341, 160] },
+    { "id": "c-engine", "from": "server", "to": "engine", "label": "SSE stream", "labelAt": [468, 248] },
+    { "id": "c-sandbox", "from": "engine", "to": "sandbox", "label": "run commands · read/write", "variant": "emphasis", "labelAt": [695, 342] },
+    { "id": "c-github", "from": "sandbox", "to": "github", "label": "scoped token", "variant": "security", "labelAt": [925, 342] },
+    { "id": "c-db", "from": "server", "to": "postgres", "label": "persist", "fromSide": "top", "toSide": "bottom", "labelAt": [420, 168] },
+    { "id": "c-providers", "from": "engine", "to": "providers", "label": "model inference", "variant": "dashed", "labelAt": [580, 342] },
+    { "id": "c-browser", "from": "sandbox", "to": "browser", "label": "CDP", "variant": "dashed", "fromSide": "bottom", "toSide": "top" },
+    { "id": "c-traces", "from": "server", "to": "traces", "label": "write spans", "variant": "dashed", "fromSide": "top", "toSide": "bottom", "labelAt": [625, 168] },
+    { "id": "c-worker-poll", "from": "worker", "to": "github", "label": "poll issues · open PRs", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "labelAt": [1035, 168] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Chat Pipeline", "items": ["Client: Next.js 16 App Router — landing, conversations, chat view", "Server: API routes for Auth, Conversations, Skills, Settings, Repos", "Engine: Vercel AI SDK tool-calling loop, SSE streaming, per-step persistence", "Sandbox: one Firecracker microVM per conversation, persistent across reopen"] },
+    { "dot": "amber", "title": "Factory Pipeline (ADR-0022/0024)", "items": ["Worker polls GitHub issues every ~10 min, dedupes via UNIQUE(factoryId, issueNumber)", "Step-graph: classify → reproduce → create_fix ⇄ review (≤2 revs) → open_pr", "Shared sandbox with per-run workspaces; orphaned-run recovery on restart", "Failed runs comment on issue (marker-guarded); PR only on verified passing fix"] },
+    { "dot": "rose", "title": "Trust & State", "items": ["Auth.js v5: GitHub OAuth, DB sessions (ADR-0014); scoped tokens (ADR-0012)", "Postgres = the queue: atomic claim via UPDATE ... FOR UPDATE SKIP LOCKED", "Sandbox isolation: Firecracker VM, dedicated kernel, network, filesystem", "Trace store: every engine/factory step recorded with tool, duration, phase"] }
+  ]
+}
